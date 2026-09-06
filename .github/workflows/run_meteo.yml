@@ -32,4 +32,4 @@ jobs:
           username: ${{ secrets.FTP_USERNAME }}
           password: ${{ secrets.FTP_PASSWORD }}
           local-dir: mappe_output/
-          server-dir: /public_html/meteo/ # Modifica se vuoi metterlo in una cartella specifica del tuo sito
+          server-dir: /www.meteonerola.it/modelli/ # Modifica se vuoi metterlo in una cartella specifica del tuo sito
