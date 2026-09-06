@@ -28,7 +28,7 @@ if response.status_code == 200:
     plt.close()
     print(f"Immagine salvata localmente in {output_path}")
 
-    # Caricamento via FTP nativo con percorso corretto
+    # Caricamento via FTP usando il percorso assoluto diretto
     ftp_server = os.environ.get("FTP_SERVER")
     ftp_user = os.environ.get("FTP_USERNAME")
     ftp_pass = os.environ.get("FTP_PASSWORD")
@@ -40,20 +40,11 @@ if response.status_code == 200:
             ftp.login(ftp_user, ftp_pass)
             print("Login FTP effettuato con successo!")
             
-            # Navigazione passo-passo nelle cartelle esistenti su Aruba
-            ftp.cwd("www.meteonerola.it")
-            
-            try:
-                ftp.cwd("modelli")
-            except:
-                print("La cartella modelli non esiste, la creo...")
-                ftp.mkd("modelli")
-                ftp.cwd("modelli")
-            
+            # Invio diretto del file specificando il percorso completo sulla destinazione
             with open(output_path, "rb") as file:
-                ftp.storbinary("STOR mappa_test.png", file)
+                ftp.storbinary("STOR /www.meteonerola.it/modelli/mappa_test.png", file)
             
-            print("File caricato con successo nella cartella modelli via FTP!")
+            print("File caricato con successo direttamente in /www.meteonerola.it/modelli/!")
             ftp.quit()
             
         except Exception as e:
