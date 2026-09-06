@@ -1,5 +1,7 @@
 import os
 import requests
+import matplotlib
+matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 from ftplib import FTP
 
