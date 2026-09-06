@@ -5,7 +5,6 @@ from ftplib import FTP
 
 print("Inizio generazione dati e infografica meteo per il Lazio...")
 
-# Città chiave del Lazio con coordinate di riferimento
 citta = {
     "Nerola": {"lat": 42.15, "lon": 12.75},
     "Roma": {"lat": 41.89, "lon": 12.51},
@@ -29,7 +28,6 @@ for nome, coords in citta.items():
             "vento": current.get("wind_speed_10m", 0)
         }
 
-# Creazione dell'immagine pulita con Matplotlib
 os.makedirs("mappe_output", exist_ok=True)
 fig, ax = plt.subplots(figsize=(8, 6))
 ax.axis('off')
@@ -54,7 +52,7 @@ plt.savefig(output_path, dpi=150, bbox_inches='tight', facecolor='white')
 plt.close()
 print(f"Immagine salvata localmente in {output_path}")
 
-# Caricamento via FTP con navigazione passo-passo (stile FileZilla)
+# Metodo diretto identico a quello che ha caricato mappa_test.png con successo
 ftp_server = os.environ.get("FTP_SERVER")
 ftp_user = os.environ.get("FTP_USERNAME")
 ftp_pass = os.environ.get("FTP_PASSWORD")
@@ -65,14 +63,10 @@ if ftp_server and ftp_user and ftp_pass:
     ftp.login(ftp_user, ftp_pass)
     print("Login FTP effettuato con successo!")
     
-    # Entriamo nelle cartelle esattamente come faresti a mano
-    ftp.cwd("www.meteonerola.it")
-    ftp.cwd("modelli")
-    
     with open(output_path, "rb") as file:
-        ftp.storbinary("STOR mappa_lazio.png", file)
+        ftp.storbinary("STOR /www.meteonerola.it/modelli/mappa_lazio.png", file)
     
-    print("File mappa_lazio.png caricato con successo nella cartella modelli!")
+    print("File mappa_lazio.png caricato con successo!")
     ftp.quit()
 else:
     print("Credenziali FTP mancanti nelle variabili d'ambiente.")
