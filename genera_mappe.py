@@ -9,7 +9,7 @@ import cartopy.crs as ccrs
 import cartopy.feature as cfeature
 import cartopy.io.shapereader as shpreader
 
-print("=== GENERAZIONE MAPPA LAZIO MODELLO ICON (OPEN-METEO) ===")
+print("=== GENERAZIONE MAPPA LAZIO HD DEFINITIVA ===")
 
 os.makedirs("mappe_output", exist_ok=True)
 
@@ -21,22 +21,20 @@ capoluoghi = {
     'VT': (12.1081, 42.4204)
 }
 
-# Griglia bilanciata di punti geografici per coprire l'area del Lazio
-lats = np.linspace(41.0, 43.0, 15)
-lons = np.linspace(11.3, 14.2, 15)
+# 1. Griglia ad alta risoluzione (30x30 = 900 punti) per catturare ogni dettaglio di valli e montagne
+lats = np.linspace(41.0, 43.0, 30)
+lons = np.linspace(11.3, 14.2, 30)
 Lon, Lat = np.meshgrid(lons, lats)
 Data_Grid = np.zeros_like(Lon)
 
 def fetch_point(args):
     i, j, lat, lon = args
-    # Interroghiamo la previsione oraria nativa del modello icon_seamless di Open-Meteo
     url = f"https://api.open-meteo.com/v1/forecast?latitude={lat}&longitude={lon}&hourly=temperature_2m&models=icon_seamless"
     try:
         response = requests.get(url, timeout=5)
         if response.status_code == 200:
             hourly_data = response.json().get("hourly", {}).get("temperature_2m", [])
             if hourly_data:
-                # Prendiamo il primo valore della serie oraria del modello
                 return i, j, float(hourly_data[0])
     except:
         pass
@@ -47,8 +45,9 @@ for i in range(lats.shape[0]):
     for j in range(lons.shape[0]):
         tasks.append((i, j, lats[i], lons[j]))
 
-print("Scaricamento dati orari del modello in corso...")
-with concurrent.futures.ThreadPoolExecutor(max_workers=8) as executor:
+print("Scaricamento griglia HD in corso...")
+# Usiamo 15 thread paralleli per scaricare 900 punti in un lampo
+with concurrent.futures.ThreadPoolExecutor(max_workers=15) as executor:
     results = executor.map(fetch_point, tasks)
     for res in results:
         if res is not None:
@@ -58,7 +57,7 @@ with concurrent.futures.ThreadPoolExecutor(max_workers=8) as executor:
 if np.all(Data_Grid == 0):
     Data_Grid.fill(20.0)
 
-levels = np.arange(-5, 42, 1)
+levels = np.arange(-5, 42, 0.5) # Livelli finissimi per sfumature dettagliate
 cmap = plt.get_cmap('Spectral_r')
 
 fig = plt.figure(figsize=(10, 9), facecolor='#1a1a1a')
@@ -66,7 +65,8 @@ ax = plt.axes(projection=ccrs.PlateCarree())
 ax.set_facecolor('#1a1a1a')
 ax.set_extent([11.3, 14.1, 41.0, 42.8], crs=ccrs.PlateCarree())
 
-mesh = ax.contourf(Lon, Lat, Data_Grid, transform=ccrs.PlateCarree(), cmap=cmap, levels=levels, extend='both', alpha=0.95, zorder=1)
+# Contour ad alta definizione
+mesh = ax.contourf(Lon, Lat, Data_Grid, transform=ccrs.PlateCarree(), cmap=cmap, levels=levels, extend='both', alpha=0.96, zorder=1)
 
 ax.add_feature(cfeature.OCEAN, facecolor='#122b39', zorder=2)
 ax.add_feature(cfeature.COASTLINE, linewidth=1.0, edgecolor='#111111', zorder=3)
@@ -97,4 +97,4 @@ output_path = "mappe_output/mappa_lazio_cartopy.png"
 plt.savefig(output_path, dpi=300, bbox_inches='tight', facecolor=fig.get_facecolor(), edgecolor='none')
 plt.close(fig)
 
-print("Mappa generata correttamente con i dati orari del modello!")
+print("Mappa HD definitiva generata con successo!")
