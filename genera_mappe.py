@@ -2,6 +2,7 @@ import os
 import requests
 import numpy as np
 import concurrent.futures
+import scipy.ndimage as ndimage
 import matplotlib
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
@@ -9,9 +10,8 @@ import cartopy.crs as ccrs
 import cartopy.feature as cfeature
 import cartopy.io.shapereader as shpreader
 
-print("=== GENERAZIONE ARCHIVIO MULTI-PARAMETRO / MULTI-STEP ===")
+print("=== GENERAZIONE ARCHIVIO MAPPE ORARIE ICON-2I ===")
 
-# Cartella di output strutturata
 OUTPUT_DIR = "mappe_output"
 os.makedirs(OUTPUT_DIR, exist_ok=True)
 
@@ -23,12 +23,11 @@ capoluoghi = {
     'VT': (12.1081, 42.4204)
 }
 
-# Griglia ottimizzata a 20x20 = 400 punti
+# Griglia ottimizzata a 20x20 = 400 punti per coprire il Lazio
 lats = np.linspace(41.0, 42.9, 20)
 lons = np.linspace(11.2, 14.2, 20)
 Lon, Lat = np.meshgrid(lons, lats)
 
-# Parametri da scaricare (puoi aggiungere precipitation, wind_speed_10m, ecc.)
 variables = ['temperature_2m']
 HOURS_TO_GENERATE = 24  # Prime 24 ore
 
@@ -37,7 +36,7 @@ def fetch_point_data(args):
     vars_str = ",".join(variables)
     url = f"https://api.open-meteo.com/v1/forecast?latitude={lat}&longitude={lon}&hourly={vars_str}&models=italia_meteo_arpae_icon_2i"
     try:
-        response = requests.get(url, timeout=6)
+        response = requests.get(url, timeout=8)
         if response.status_code == 200:
             data = response.json().get("hourly", {})
             return i, j, data
@@ -55,7 +54,8 @@ raw_grid_data = {}
 for var in variables:
     raw_grid_data[var] = np.full((len(lats), len(lons), HOURS_TO_GENERATE), np.nan)
 
-with concurrent.futures.ThreadPoolExecutor(max_workers=12) as executor:
+# Usiamo max_workers=8 per non sovraccaricare l'API ed evitare richieste rifiutate/NaN
+with concurrent.futures.ThreadPoolExecutor(max_workers=8) as executor:
     results = executor.map(fetch_point_data, tasks)
     for res in results:
         if res is not None:
@@ -70,11 +70,24 @@ for var in variables:
     for h in range(HOURS_TO_GENERATE):
         Data_Grid = raw_grid_data[var][:, :, h]
         
+        # Se ci sono valori NaN (buchi neri), li interpoliamo usando i valori vicini
+        if np.isnan(Data_Grid).any():
+            mask = np.isnan(Data_Grid)
+            try:
+                Data_Grid[mask] = ndimage.generic_filter(
+                    Data_Grid, 
+                    lambda x: np.nanmean(x[~np.isnan(x)]) if np.any(~np.isnan(x)) else 0, 
+                    size=3, 
+                    mode='nearest'
+                )[mask]
+            except:
+                pass
+
         if np.isnan(Data_Grid).all():
             continue
 
-        levels = np.arange(-5, 42, 1) if var == 'temperature_2m' else np.arange(0, 50, 2)
-        cmap = plt.get_cmap('Spectral_r' if var == 'temperature_2m' else 'Blues')
+        levels = np.arange(-5, 42, 1)
+        cmap = plt.get_cmap('Spectral_r')
 
         fig = plt.figure(figsize=(10, 9), facecolor='#1a1a1a')
         ax = plt.axes(projection=ccrs.PlateCarree())
@@ -101,10 +114,10 @@ for var in variables:
                     bbox=dict(boxstyle='square,pad=0.15', facecolor='white', alpha=0.9, edgecolor='none'), zorder=6)
 
         cbar = fig.colorbar(mesh, ax=ax, orientation='horizontal', pad=0.04, shrink=0.85, extend='both')
-        cbar.set_label(f'{var} (°C)', color='white', fontsize=10, fontweight='bold')
+        cbar.set_label('Temperatura a 2m (°C)', color='white', fontsize=10, fontweight='bold')
         cbar.ax.tick_params(labelsize=9, colors='white')
 
-        fig.text(0.5, 0.92, f"ICON-2I - Lazio | {var} (+{h}h)", fontsize=13, fontweight='bold', color='white', ha='center')
+        fig.text(0.5, 0.92, f"Modello ICON-2I - Lazio | Temperatura a 2m (+{h}h)", fontsize=13, fontweight='bold', color='white', ha='center')
         ax.text(0.97, 0.03, 'www.meteonerola.it', transform=ax.transAxes, fontsize=9, fontweight='bold', color='white', 
                 ha='right', va='bottom', zorder=10, bbox=dict(boxstyle='round,pad=0.4', facecolor='#222222', alpha=0.9, edgecolor='#555555'))
 
@@ -112,4 +125,4 @@ for var in variables:
         plt.savefig(os.path.join(OUTPUT_DIR, filename), dpi=300, bbox_inches='tight', facecolor=fig.get_facecolor(), edgecolor='none')
         plt.close(fig)
 
-print("Tutte le mappe dell'archivio sono state generate con successo!")
+print("Tutte le mappe orarie sono state generate con successo nella cartella mappe_output/")
