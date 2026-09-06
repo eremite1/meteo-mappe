@@ -60,7 +60,7 @@ for loc in locations:
     hourly = loc.get("hourly", {}).get("temperature_2m", [])
     if lat is not None and lon is not None and hourly:
         lats_list.append(lat)
-        lons_list.append(lon>
+        lons_list.append(lon)
         temps_list.append(hourly[0]) # Primo step orario
 
 # Conversione in array numpy e strutturazione in griglia 2D
@@ -71,7 +71,7 @@ if len(lats_unique) > 1 and len(lons_unique) > 1:
     Lon, Lat = np.meshgrid(lons_unique, lats_unique)
     Data_Grid = np.array(temps_list).reshape(len(lats_unique), len(lons_unique))
 else:
-    # FallboaCk di sicurezza se la risposta è lineare
+    # Fallback di sicurezza se la risposta è lineare
     Lon, Lat = np.meshgrid(np.linspace(11.2, 14.2, 20), np.linspace(41.0, 42.9, 20))
     Data_Grid = np.full_like(Lon, 20.0)
 
