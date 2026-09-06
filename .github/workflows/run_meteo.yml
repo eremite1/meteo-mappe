@@ -1,4 +1,4 @@
-name: Aggiorna Mappe Meteo
+name: Genera Archivio Meteo Completo
 
 on:
   schedule:
@@ -24,13 +24,13 @@ jobs:
           python -m pip install --upgrade pip
           pip install requests matplotlib
 
-      - name: Esegui script generazione mappe
+      - name: Esegui script generazione archivio
         run: python genera_mappe.py
 
-      - name: Salva mappa aggiornata su GitHub
+      - name: Salva tutte le mappe su GitHub
         run: |
           git config --global user.name "GitHub Actions Bot"
           git config --global user.email "actions@github.com"
-          git add mappe_output/mappa_lazio.png
-          git commit -m "Aggiornamento automatico mappa Lazio [skip ci]" || exit 0
+          git add mappe_output/
+          git commit -m "Aggiornamento archivio mappe multi-parametro [skip ci]" || exit 0
           git push
