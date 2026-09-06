@@ -31,7 +31,7 @@ Data_Grid = np.full_like(Lon, 20.0)
 
 def fetch_point(args):
     i, j, lat, lon = args
-    url = f"https://api.open-meteo.com/v1/forecast?latitude={lat}&longitude={lon}&hourly=temperature_2m&models=icon_seamless"
+    url = f"https://api.open-meteo.com/v1/forecast?latitude={lat}&longitude={lon}&hourly=temperature_2m&models=icon_2i"
     try:
         response = requests.get(url, timeout=6)
         if response.status_code == 200:
