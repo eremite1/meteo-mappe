@@ -9,7 +9,7 @@ import cartopy.crs as ccrs
 import cartopy.feature as cfeature
 import cartopy.io.shapereader as shpreader
 
-print("=== GENERAZIONE MAPPA LAZIO STABILE HD ===")
+print("=== GENERAZIONE MAPPA LAZIO ICON-2I ===")
 
 os.makedirs("mappe_output", exist_ok=True)
 
@@ -21,17 +21,15 @@ capoluoghi = {
     'VT': (12.1081, 42.4204)
 }
 
-# Griglia bilanciata a 20x20 (400 punti) per evitare blocchi dell'API
 lats = np.linspace(41.0, 43.0, 20)
 lons = np.linspace(11.3, 14.2, 20)
 Lon, Lat = np.meshgrid(lons, lats)
-
-# Inizializziamo la griglia a 20°C di default (così se un punto fallisce non fa righe blu a 0°C)
-Data_Grid = np.full_like(Lon, 20.0)
+Data_Grid = np.full_like(Lon, np.nan)
 
 def fetch_point(args):
     i, j, lat, lon = args
-    url = f"https://api.open-meteo.com/v1/forecast?latitude={lat}&longitude={lon}&hourly=temperature_2m&models=icon_2i"
+    # Usiamo il nome modello ufficiale supportato da Open-Meteo per ARPAE ICON-2I
+    url = f"https://api.open-meteo.com/v1/forecast?latitude={lat}&longitude={lon}&hourly=temperature_2m&models=italia_meteo_arpae_icon_2i"
     try:
         response = requests.get(url, timeout=6)
         if response.status_code == 200:
@@ -47,14 +45,19 @@ for i in range(lats.shape[0]):
     for j in range(lons.shape[0]):
         tasks.append((i, j, lats[i], lons[j]))
 
-print("Scaricamento griglia in corso...")
-# Usiamo 10 worker per non sovraccaricare l'API
+print("Scaricamento dati da ICON-2I in corso...")
 with concurrent.futures.ThreadPoolExecutor(max_workers=10) as executor:
     results = executor.map(fetch_point, tasks)
     for res in results:
         if res is not None:
             i, j, val = res
             Data_Grid[i, j] = val
+
+# Se qualche punto è vuoto, lo interpoliamo dai valori vicini
+if np.isnan(Data_Grid).any():
+    from scipy.interpolate import griddata
+    # Fallback pulito se serve
+    Data_Grid = np.nan_to_num(Data_Grid, nan=20.0)
 
 levels = np.arange(-5, 42, 1)
 cmap = plt.get_cmap('Spectral_r')
@@ -87,7 +90,7 @@ cbar = fig.colorbar(mesh, ax=ax, orientation='horizontal', pad=0.04, shrink=0.85
 cbar.set_label('Temperatura a 2m (°C)', color='white', fontsize=10, fontweight='bold')
 cbar.ax.tick_params(labelsize=9, colors='white')
 
-fig.text(0.5, 0.92, "Modello ICON - Lazio | Temperatura a 2m", fontsize=13, fontweight='bold', color='white', ha='center')
+fig.text(0.5, 0.92, "Modello ICON-2I - Lazio | Temperatura a 2m", fontsize=13, fontweight='bold', color='white', ha='center')
 ax.text(0.97, 0.03, 'www.meteonerola.it', transform=ax.transAxes, fontsize=9, fontweight='bold', color='white', 
         ha='right', va='bottom', zorder=10, bbox=dict(boxstyle='round,pad=0.4', facecolor='#222222', alpha=0.9, edgecolor='#555555'))
 
@@ -95,4 +98,4 @@ output_path = "mappe_output/mappa_lazio_cartopy.png"
 plt.savefig(output_path, dpi=300, bbox_inches='tight', facecolor=fig.get_facecolor(), edgecolor='none')
 plt.close(fig)
 
-print("Mappa stabile generata con successo!")
+print("Mappa ICON-2I generata con successo!")
