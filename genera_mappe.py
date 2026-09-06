@@ -7,16 +7,14 @@ import matplotlib.pyplot as plt
 
 print("=== GENERAZIONE MAPPA CONTINUA (GRIGLIA LAZIO) ===")
 
-# 1. Definiamo una griglia di punti (lat/lon) che coprono il Lazio
-lats = np.linspace(41.3, 42.8, 15)   da Sud a Nord
-lons = np.linspace(11.8, 13.9, 15)   da Ovest a Est
+# Definizione della griglia di punti che coprono il Lazio
+lats = np.linspace(41.3, 42.8, 15)  # da Sud a Nord
+lons = np.linspace(11.8, 13.9, 15)  # da Ovest a Est
 
-# Creiamo una griglia bidimensionale
 Lon, Lat = np.meshgrid(lons, lats)
 Data_Grid = np.zeros_like(Lon)
 
-# 2. Scarichiamo i dati per ogni punto della griglia (o a blocchi)
-# Nota: per velocizzare l'esempio su griglia ridotta, campioniamo i punti
+# Download dei dati puntuali per popolare la griglia
 for i in range(lats.shape[0]):
     for j in range(lons.shape[0]):
         url = f"https://api.open-meteo.com/v1/forecast?latitude={lats[i]}&longitude={lons[j]}&current=temperature_2m&models=icon_seamless"
@@ -25,22 +23,19 @@ for i in range(lats.shape[0]):
             current = response.json().get("current", {})
             Data_Grid[i, j] = current.get("temperature_2m", 0)
 
-# 3. Creazione della mappa con sfumature continue (contourf)
 os.makedirs("mappe_output", exist_ok=True)
 fig, ax = plt.subplots(figsize=(8, 8))
 
-# Disegna le curve di livello riempite (sfumature termiche)
+# Generazione delle sfumature continue stile modello meteo
 contour = ax.contourf(Lon, Lat, Data_Grid, levels=20, cmap='Spectral_r', extend='both')
 
-# Personalizzazione grafica stile meteo
-plt.title("Meteo Lazio - Temperatura a 2m (Modello ICON)", fontsize=13, fontweight='bold', color='#ffffff', pad=15)
+plt.title("Meteo Lazio - Temperatura a 2m (Modello ICON)", fontsize=13, fontweight='bold', color='white', pad=15)
 fig.patch.set_facecolor('#1e1e1e')
 ax.set_facecolor('#1e1e1e')
 
-# Aggiunta della barra dei colori (colorbar) in basso
 cbar = fig.colorbar(contour, orientation='horizontal', pad=0.05, shrink=0.8)
 cbar.set_label('Temperatura (°C)', color='white')
-cbar.ax.tick_params(labelsize=9)
+cbar.ax.tick_params(labelsize=9, colors='white')
 
 output_path = "mappe_output/mappa_continua_lazio.png"
 plt.savefig(output_path, dpi=150, bbox_inches='tight', facecolor=fig.get_facecolor())
