@@ -1,74 +1,49 @@
 import os
 import requests
+import numpy as np
 import matplotlib
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 
-print("=== INIZIO GENERAZIONE ARCHIVIO MAPPE ORARIE LAZIO ===")
+print("=== GENERAZIONE MAPPA CONTINUA (GRIGLIA LAZIO) ===")
 
-citta = {
-    "Nerola": {"lat": 42.15, "lon": 12.75},
-    "Roma": {"lat": 41.89, "lon": 12.51},
-    "Viterbo": {"lat": 42.42, "lon": 12.10},
-    "Rieti": {"lat": 42.40, "lon": 12.86},
-    "Latina": {"lat": 41.46, "lon": 12.90},
-    "Frosinone": {"lat": 41.64, "lon": 13.35}
-}
+# 1. Definiamo una griglia di punti (lat/lon) che coprono il Lazio
+lats = np.linspace(41.3, 42.8, 15)   da Sud a Nord
+lons = np.linspace(11.8, 13.9, 15)   da Ovest a Est
 
-# Parametri da generare
-parametri = {
-    "temp": {"titolo": "Temperatura (°C", "unita": "°C"},
-    "umid": {"titolo": "Umidità Relativa", "unita": "%"},
-    "pioggia": {"titolo": "Precipitazioni", "unita": "mm"},
-    "nuvole": {"titolo": "Copertura Nuvolosa", "unita": "%"}
-}
+# Creiamo una griglia bidimensionale
+Lon, Lat = np.meshgrid(lons, lats)
+Data_Grid = np.zeros_like(Lon)
 
-# Scarichiamo i dati orari per ogni città (orizzonte 24 ore, step ogni 3 ore)
-step_ore = [0, 3, 6, 9, 12, 15, 18, 21, 24]
-dati_orari = {}
-
-# Inizializziamo la struttura dati per le ore
-for ora in step_ore:
-    dati_orari[ora] = {}
-    for nome, coords in citta.items():
-        url = f"https://api.open-meteo.com/v1/forecast?latitude={coords['lat']}&longitude={coords['lon']}&hourly=temperature_2m,relative_humidity_2m,precipitation,cloud_cover&models=icon_seamless"
+# 2. Scarichiamo i dati per ogni punto della griglia (o a blocchi)
+# Nota: per velocizzare l'esempio su griglia ridotta, campioniamo i punti
+for i in range(lats.shape[0]):
+    for j in range(lons.shape[0]):
+        url = f"https://api.open-meteo.com/v1/forecast?latitude={lats[i]}&longitude={lons[j]}&current=temperature_2m&models=icon_seamless"
         response = requests.get(url)
         if response.status_code == 200:
-            hourly = response.json().get("hourly", {})
-            # Prendiamo i valori corrispondenti all'ora iesima
-            dati_orari[ora][nome] = {
-                "temp": hourly.get("temperature_2m", [0]*25)[ora],
-                "umid": hourly.get("relative_humidity_2m", [0]*25)[ora],
-                "pioggia": hourly.get("precipitation", [0]*25)[ora],
-                "nuvole": hourly.get("cloud_cover", [0]*25)[ora]
-            }
+            current = response.json().get("current", {})
+            Data_Grid[i, j] = current.get("temperature_2m", 0)
 
+# 3. Creazione della mappa con sfumature continue (contourf)
 os.makedirs("mappe_output", exist_ok=True)
+fig, ax = plt.subplots(figsize=(8, 8))
 
-# Generazione delle immagini per ogni parametro e per ogni ora
-for param_key, param_info in parametri.items():
-    for ora in step_ore:
-        fig, ax = plt.subplots(figsize=(8, 6))
-        ax.axis('off')
+# Disegna le curve di livello riempite (sfumature termiche)
+contour = ax.contourf(Lon, Lat, Data_Grid, levels=20, cmap='Spectral_r', extend='both')
 
-        # Titolo dinamico con parametro e ora
-        titolo_grafico = f"Meteo Lazio - {param_info['titolo']} (+{ora}h)"
-        plt.title(titolo_grafico, fontsize=13, fontweight='bold', pad=20, color='#1f4e79')
+# Personalizzazione grafica stile meteo
+plt.title("Meteo Lazio - Temperatura a 2m (Modello ICON)", fontsize=13, fontweight='bold', color='#ffffff', pad=15)
+fig.patch.set_facecolor('#1e1e1e')
+ax.set_facecolor('#1e1e1e')
 
-        # Intestazioni tabella
-        ax.text(0.10, 0.85, "Località", fontsize=11, fontweight='bold', transform=ax.transAxes, color='#333333')
-        ax.text(0.55, 0.85, f"Valore ({param_info['unita']})", fontsize=11, fontweight='bold', transform=ax.transAxes, color='#333333')
+# Aggiunta della barra dei colori (colorbar) in basso
+cbar = fig.colorbar(contour, orientation='horizontal', pad=0.05, shrink=0.8)
+cbar.set_label('Temperatura (°C)', color='white')
+cbar.ax.tick_params(labelsize=9)
 
-        y_pos = 0.73
-        for nome in citta.keys():
-            valore = dati_orari[ora][nome][param_key]
-            ax.text(0.10, y_pos, f"• {nome}", fontsize=11, transform=ax.transAxes, fontweight='semibold')
-            ax.text(0.55, y_pos, f"{valore} {param_info['unita']}", fontsize=11, transform=ax.transAxes)
-            y_pos -= 0.10
+output_path = "mappe_output/mappa_continua_lazio.png"
+plt.savefig(output_path, dpi=150, bbox_inches='tight', facecolor=fig.get_facecolor())
+plt.close()
 
-        # Salvataggio con nome strutturato (es. temp_03h.png, pioggia_12h.png)
-        output_path = f"mappe_output/{param_key}_{ora:02d}h.png"
-        plt.savefig(output_path, dpi=150, bbox_inches='tight', facecolor='white')
-        plt.close()
-
-print("Tutte le mappe multi-parametro e multi-orario sono state generate con successo!")
+print(f"Mappa continua generata con successo in {output_path}!")
