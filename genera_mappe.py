@@ -52,7 +52,7 @@ plt.savefig(output_path, dpi=150, bbox_inches='tight', facecolor='white')
 plt.close()
 print(f"Immagine salvata localmente in {output_path}")
 
-# Metodo diretto identico a quello che ha caricato mappa_test.png con successo
+# Upload FTP con lo stesso metodo collaudato (navigazione cartella per cartella)
 ftp_server = os.environ.get("FTP_SERVER")
 ftp_user = os.environ.get("FTP_USERNAME")
 ftp_pass = os.environ.get("FTP_PASSWORD")
@@ -63,10 +63,14 @@ if ftp_server and ftp_user and ftp_pass:
     ftp.login(ftp_user, ftp_pass)
     print("Login FTP effettuato con successo!")
     
-    with open(output_path, "rb") as file:
-        ftp.storbinary("STOR /www.meteonerola.it/modelli/mappa_lazio.png", file)
+    # Entriamo nelle cartelle passo-passo esattamente come FileZilla
+    ftp.cwd("www.meteonerola.it")
+    ftp.cwd("modelli")
     
-    print("File mappa_lazio.png caricato con successo!")
+    with open(output_path, "rb") as file:
+        ftp.storbinary("STOR mappa_lazio.png", file)
+    
+    print("File mappa_lazio.png caricato con successo nella cartella modelli!")
     ftp.quit()
 else:
     print("Credenziali FTP mancanti nelle variabili d'ambiente.")
