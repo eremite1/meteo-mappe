@@ -10,7 +10,7 @@ import cartopy.crs as ccrs
 import cartopy.feature as cfeature
 import cartopy.io.shapereader as shpreader
 
-print("=== GENERAZIONE ARCHIVIO MAPPE ORARIE ICON-2I (STILE CHIARO) ===")
+print("=== GENERAZIONE ARCHIVIO MAPPE ORARIE ICON-2I (ALTA RISOLUZIONE) ===")
 
 OUTPUT_DIR = "mappe_output"
 os.makedirs(OUTPUT_DIR, exist_ok=True)
@@ -23,8 +23,9 @@ capoluoghi = {
     'VT': (12.1081, 42.4204)
 }
 
-lats = np.linspace(41.0, 42.9, 20)
-lons = np.linspace(11.2, 14.2, 20)
+# Griglia ad alta risoluzione 35x35 = 1225 punti per un dettaglio finissimo
+lats = np.linspace(41.0, 42.9, 35)
+lons = np.linspace(11.2, 14.2, 35)
 Lon, Lat = np.meshgrid(lons, lats)
 
 variables = ['temperature_2m']
@@ -48,15 +49,15 @@ for i in range(lats.shape[0]):
     for j in range(lons.shape[0]):
         tasks.append((i, j, lats[i], lons[j]))
 
-print("Scaricamento dati completi dal modello ICON-2I in corso...")
+print("Scaricamento griglia ad alta risoluzione dal modello ICON-2I in corso...")
 raw_grid_data = {}
 for var in variables:
     raw_grid_data[var] = np.full((len(lats), len(lons), HOURS_TO_GENERATE), np.nan)
 
-# Recuperiamo anche gli orari di riferimento se disponibili dalla prima risposta valida
 times_list = []
 
-with concurrent.futures.ThreadPoolExecutor(max_workers=8) as executor:
+# Usiamo max_workers=12 per gestire velocemente i 1225 punti
+with concurrent.futures.ThreadPoolExecutor(max_workers=12) as executor:
     results = executor.map(fetch_point_data, tasks)
     for res in results:
         if res is not None:
@@ -68,7 +69,7 @@ with concurrent.futures.ThreadPoolExecutor(max_workers=8) as executor:
                 for h in range(min(HOURS_TO_GENERATE, len(values))):
                     raw_grid_data[var][i, j, h] = float(values[h])
 
-# Generazione delle mappe con stile chiaro e barra verticale
+# Generazione delle mappe ad alta risoluzione
 for var in variables:
     for h in range(HOURS_TO_GENERATE):
         Data_Grid = raw_grid_data[var][:, :, h]
@@ -79,18 +80,15 @@ for var in variables:
                 mean_val = 15.0
             Data_Grid = np.nan_to_num(Data_Grid, nan=mean_val)
 
-        # Calcolo stringa di validità temporale basata sui dati API o calcolata UTC
         valid_time_str = ""
         if times_list and h < len(times_list):
             try:
-                # Esempio formato API: "2026-09-06T14:00"
                 dt_obj = datetime.fromisoformat(times_list[h])
                 valid_time_str = dt_obj.strftime("%d %B %Y - Ore: %H:%M UTC")
             except:
                 pass
         
         if not valid_time_str:
-            # Fallback basato sull'ora attuale UTC corrente troncata all'ora + h
             base_utc = datetime.now(timezone.utc).replace(minute=0, second=0, microsecond=0)
             target_utc = base_utc + timedelta(hours=h)
             valid_time_str = target_utc.strftime("%d %B %Y - Ore: %H:%M UTC")
@@ -98,13 +96,13 @@ for var in variables:
         levels = np.arange(-5, 42, 1)
         cmap = plt.get_cmap('Spectral_r')
 
-        # Layout chiaro con sfondo bianco/grigio chiaro
         fig = plt.figure(figsize=(10, 8), facecolor='#ffffff')
         ax = plt.axes(projection=ccrs.PlateCarree())
         ax.set_facecolor('#f4f4f4')
         ax.set_extent([11.3, 14.1, 41.0, 42.8], crs=ccrs.PlateCarree())
 
-        mesh = ax.contourf(Lon, Lat, Data_Grid, transform=ccrs.PlateCarree(), cmap=cmap, levels=levels, extend='both', alpha=0.92, zorder=1)
+        # Usiamo un livello di sfumatura ancora più fluido (alpha ottimizzato)
+        mesh = ax.contourf(Lon, Lat, Data_Grid, transform=ccrs.PlateCarree(), cmap=cmap, levels=levels, extend='both', alpha=0.94, zorder=1)
 
         ax.add_feature(cfeature.OCEAN, facecolor='#cce6ff', zorder=2)
         ax.add_feature(cfeature.COASTLINE, linewidth=1.0, edgecolor='#333333', zorder=3)
@@ -123,16 +121,13 @@ for var in variables:
             ax.text(lon_c + 0.03, lat_c, sigla, transform=ccrs.PlateCarree(), fontsize=8, fontweight='bold', color='black', 
                     bbox=dict(boxstyle='square,pad=0.15', facecolor='white', alpha=0.85, edgecolor='#cccccc'), zorder=6)
 
-        # Barra della legenda VERTICALE a destra
         cbar = fig.colorbar(mesh, ax=ax, orientation='vertical', pad=0.03, shrink=0.82, aspect=25, extend='both')
         cbar.set_label('Temperatura (°C)', color='black', fontsize=10, fontweight='bold')
         cbar.ax.tick_params(labelsize=9, colors='black')
 
-        # Intestazione su due righe centrata in alto
         fig.text(0.50, 0.93, "Modello ICON-2I - Lazio | Temperatura (°C)", fontsize=12, fontweight='bold', color='black', ha='center')
         fig.text(0.50, 0.89, f"Valido il: {valid_time_str}", fontsize=10, fontweight='bold', color='#333333', ha='center')
 
-        # Watermark in basso a destra in un box pulito
         ax.text(0.97, 0.03, 'www.meteonerola.it', transform=ax.transAxes, fontsize=9, fontweight='bold', color='black', 
                 ha='right', va='bottom', zorder=10, bbox=dict(boxstyle='round,pad=0.4', facecolor='white', alpha=0.9, edgecolor='#aaaaaa'))
 
@@ -140,4 +135,4 @@ for var in variables:
         plt.savefig(os.path.join(OUTPUT_DIR, filename), dpi=300, bbox_inches='tight', facecolor=fig.get_facecolor(), edgecolor='none')
         plt.close(fig)
 
-print("Tutte le mappe in stile chiaro con barra verticale sono state generate con successo!")
+print("Tutte le mappe ad alta risoluzione sono state generate con successo!")
