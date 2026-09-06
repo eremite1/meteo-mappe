@@ -55,9 +55,9 @@ plt.close()
 if os.path.exists(output_path):
     print(f"OK: Immagine creata localmente. Dimensione: {os.path.getsize(output_path)} bytes")
 else:
-    ERRORE: Immagine NON creata!")
+    print("ERRORE: Immagine NON creata!")
 
-# Upload FTP con log dettagliati
+# Upload FTP
 ftp_server = os.environ.get("FTP_SERVER")
 ftp_user = os.environ.get("FTP_USERNAME")
 ftp_pass = os.environ.get("FTP_PASSWORD")
@@ -66,29 +66,13 @@ if ftp_server and ftp_user and ftp_pass:
     print("Connessione al server FTP di Aruba...")
     ftp = FTP(ftp_server)
     ftp.login(ftp_user, ftp_pass)
-    print(f"FTP Cartella iniziale (PWD): {ftp.pwd()}")
     
-    try:
-        ftp.cwd("www.meteonerola.it")
-        print(f"Entrato in www.meteonerola.it, PWD attuale: {ftp.pwd()}")
-    except Exception as e:
-        print(f"Errore entrando in www.meteonerola.it: {e}")
-        
-    try:
-        ftp.cwd("modelli")
-        print(f"Entrato in modelli, PWD attuale: {ftp.pwd()}")
-    except Exception as e:
-        print(f"Errore entrando in modelli: {e}")
-
-    print("File presenti nella cartella corrente prima dell'upload:")
-    print(ftp.nlst())
-
+    ftp.cwd("www.meteonerola.it")
+    ftp.cwd("modelli")
+    
     with open(output_path, "rb") as file:
         ftp.storbinary("STOR mappa_lazio.png", file)
-    print("Upload di mappa_lazio.png completato!")
-
-    print("File presenti nella cartella corrente dopo l'upload:")
-    print(ftp.nlst())
+    print("Upload di mappa_lazio.png completato con successo!")
 
     ftp.quit()
 else:
