@@ -1,6 +1,8 @@
 import os
 import requests
 import numpy as np
+import concurrent.futures
+import traceback
 import matplotlib
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
@@ -8,7 +10,7 @@ import cartopy.crs as ccrs
 import cartopy.feature as cfeature
 import cartopy.io.shapereader as shpreader
 
-print("=== GENERAZIONE MAPPA LAZIO CON BOUNDING BOX NATIVO ===")
+print("=== GENERAZIONE MAPPA LAZIO ICON-2I (GRIGLIA OTTIMIZZATA) ===")
 
 os.makedirs("mappe_output", exist_ok=True)
 
@@ -20,60 +22,38 @@ capoluoghi = {
     'VT': (12.1081, 42.4204)
 }
 
-# Chiamata unica con il bounding box per il modello ICON-2I di ARPAE
-# Formato bounding_box: min_latitude, min_longitude, max_latitude, max_longitude
-url = (
-    "https://api.open-meteo.com/v1/forecast?"
-    "bounding_box=41.0,11.2,42.9,14.2"
-    "&hourly=temperature_2m"
-    "&models=italia_meteo_arpae_icon_2i"
-    "&forecast_days=1"
-)
+# Griglia a 20x20 = 400 punti (sotto il limite dei 1000 dell'API) per coprire perfettamente il Lazio
+lats = np.linspace(41.0, 42.9, 20)
+lons = np.linspace(11.2, 14.2, 20)
+Lon, Lat = np.meshgrid(lons, lats)
+Data_Grid = np.full_like(Lon, 20.0)
 
-print("Scaricamento della griglia nativa in corso...")
-try:
-    response = requests.get(url, timeout=10)
-    if response.status_code == 200:
-        data = response.json()
-        print("Dati scaricati con successo!")
-    else:
-        print(f"Errore API: {response.status_code} - {response.text}")
-        exit(1)
-except Exception as e:
-    print(f"Errore di connessione: {e}")
-    exit(1)
+def fetch_point(args):
+    i, j, lat, lon = args
+    # Usiamo il nome modello ufficiale corretto
+    url = f"https://api.open-meteo.com/v1/forecast?latitude={lat}&longitude={lon}&hourly=temperature_2m&models=italia_meteo_arpae_icon_2i"
+    try:
+        response = requests.get(url, timeout=5)
+        if response.status_code == 200:
+            hourly_data = response.json().get("hourly", {}).get("temperature_2m", [])
+            if hourly_data:
+                return i, j, float(hourly_data[0])
+    except:
+        pass
+    return None
 
-# Se l'API restituisce una lista di punti (perché il bounding box espande i dati in multi-location)
-# li rimappiamo in una matrice regolare per Cartopy
-if isinstance(data, list):
-    locations = data
-else:
-    locations = [data]
+tasks = []
+for i in range(lats.shape[0]):
+    for j in range(lons.shape[0]):
+        tasks.append((i, j, lats[i], lons[j]))
 
-lats_list = []
-lons_list = []
-temps_list = []
-
-for loc in locations:
-    lat = loc.get("latitude")
-    lon = loc.get("longitude")
-    hourly = loc.get("hourly", {}).get("temperature_2m", [])
-    if lat is not None and lon is not None and hourly:
-        lats_list.append(lat)
-        lons_list.append(lon)
-        temps_list.append(hourly[0]) # Primo step orario
-
-# Conversione in array numpy e strutturazione in griglia 2D
-lats_unique = np.unique(lats_list)
-lons_unique = np.unique(lons_list)
-
-if len(lats_unique) > 1 and len(lons_unique) > 1:
-    Lon, Lat = np.meshgrid(lons_unique, lats_unique)
-    Data_Grid = np.array(temps_list).reshape(len(lats_unique), len(lons_unique))
-else:
-    # Fallback di sicurezza se la risposta è lineare
-    Lon, Lat = np.meshgrid(np.linspace(11.2, 14.2, 20), np.linspace(41.0, 42.9, 20))
-    Data_Grid = np.full_like(Lon, 20.0)
+print("Scaricamento dati paralleli dal modello ICON-2I...")
+with concurrent.futures.ThreadPoolExecutor(max_workers=10) as executor:
+    results = executor.map(fetch_point, tasks)
+    for res in results:
+        if res is not None:
+            i, j, val = res
+            Data_Grid[i, j] = val
 
 levels = np.arange(-5, 42, 1)
 cmap = plt.get_cmap('Spectral_r')
@@ -106,7 +86,7 @@ cbar = fig.colorbar(mesh, ax=ax, orientation='horizontal', pad=0.04, shrink=0.85
 cbar.set_label('Temperatura a 2m (°C)', color='white', fontsize=10, fontweight='bold')
 cbar.ax.tick_params(labelsize=9, colors='white')
 
-fig.text(0.5, 0.92, "Modello ICON-2I (Bounding Box) - Lazio | Temperatura a 2m", fontsize=12, fontweight='bold', color='white', ha='center')
+fig.text(0.5, 0.92, "Modello ICON-2I - Lazio | Temperatura a 2m", fontsize=13, fontweight='bold', color='white', ha='center')
 ax.text(0.97, 0.03, 'www.meteonerola.it', transform=ax.transAxes, fontsize=9, fontweight='bold', color='white', 
         ha='right', va='bottom', zorder=10, bbox=dict(boxstyle='round,pad=0.4', facecolor='#222222', alpha=0.9, edgecolor='#555555'))
 
@@ -114,4 +94,4 @@ output_path = "mappe_output/mappa_lazio_cartopy.png"
 plt.savefig(output_path, dpi=300, bbox_inches='tight', facecolor=fig.get_facecolor(), edgecolor='none')
 plt.close(fig)
 
-print("Mappa con Bounding Box generata con successo!")
+print("Mappa ICON-2I generata con successo!")
