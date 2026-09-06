@@ -3,7 +3,7 @@ import requests
 import matplotlib.pyplot as plt
 from ftplib import FTP
 
-print("Inizio generazione dati e infografica meteo per il Lazio...")
+print("=== INIZIO ESECUZIONE ===")
 
 citta = {
     "Nerola": {"lat": 42.15, "lon": 12.75},
@@ -19,6 +19,7 @@ dati_meteo = {}
 for nome, coords in citta.items():
     url = f"https://api.open-meteo.com/v1/forecast?latitude={coords['lat']}&longitude={coords['lon']}&current=temperature_2m,relative_humidity_2m,precipitation,wind_speed_10m&models=icon_seamless"
     response = requests.get(url)
+    print(f"Richiesta {nome}: status {response.status_code}")
     if response.status_code == 200:
         current = response.json().get("current", {})
         dati_meteo[nome] = {
@@ -50,9 +51,13 @@ for nome, vals in dati_meteo.items():
 output_path = "mappe_output/mappa_lazio.png"
 plt.savefig(output_path, dpi=150, bbox_inches='tight', facecolor='white')
 plt.close()
-print(f"Immagine salvata localmente in {output_path}")
 
-# Upload FTP con lo stesso metodo collaudato (navigazione cartella per cartella)
+if os.path.exists(output_path):
+    print(f"OK: Immagine creata localmente. Dimensione: {os.path.getsize(output_path)} bytes")
+else:
+    ERRORE: Immagine NON creata!")
+
+# Upload FTP con log dettagliati
 ftp_server = os.environ.get("FTP_SERVER")
 ftp_user = os.environ.get("FTP_USERNAME")
 ftp_pass = os.environ.get("FTP_PASSWORD")
@@ -61,16 +66,30 @@ if ftp_server and ftp_user and ftp_pass:
     print("Connessione al server FTP di Aruba...")
     ftp = FTP(ftp_server)
     ftp.login(ftp_user, ftp_pass)
-    print("Login FTP effettuato con successo!")
+    print(f"FTP Cartella iniziale (PWD): {ftp.pwd()}")
     
-    # Entriamo nelle cartelle passo-passo esattamente come FileZilla
-    ftp.cwd("www.meteonerola.it")
-    ftp.cwd("modelli")
-    
+    try:
+        ftp.cwd("www.meteonerola.it")
+        print(f"Entrato in www.meteonerola.it, PWD attuale: {ftp.pwd()}")
+    except Exception as e:
+        print(f"Errore entrando in www.meteonerola.it: {e}")
+        
+    try:
+        ftp.cwd("modelli")
+        print(f"Entrato in modelli, PWD attuale: {ftp.pwd()}")
+    except Exception as e:
+        print(f"Errore entrando in modelli: {e}")
+
+    print("File presenti nella cartella corrente prima dell'upload:")
+    print(ftp.nlst())
+
     with open(output_path, "rb") as file:
         ftp.storbinary("STOR mappa_lazio.png", file)
-    
-    print("File mappa_lazio.png caricato con successo nella cartella modelli!")
+    print("Upload di mappa_lazio.png completato!")
+
+    print("File presenti nella cartella corrente dopo l'upload:")
+    print(ftp.nlst())
+
     ftp.quit()
 else:
-    print("Credenziali FTP mancanti nelle variabili d'ambiente.")
+    print("Credenziali FTP mancanti!")
