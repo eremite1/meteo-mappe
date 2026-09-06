@@ -9,7 +9,7 @@ import cartopy.crs as ccrs
 import cartopy.feature as cfeature
 import cartopy.io.shapereader as shpreader
 
-print("=== GENERAZIONE MAPPA LAZIO HD DEFINITIVA ===")
+print("=== GENERAZIONE MAPPA LAZIO STABILE HD ===")
 
 os.makedirs("mappe_output", exist_ok=True)
 
@@ -21,17 +21,19 @@ capoluoghi = {
     'VT': (12.1081, 42.4204)
 }
 
-# 1. Griglia ad alta risoluzione (30x30 = 900 punti) per catturare ogni dettaglio di valli e montagne
-lats = np.linspace(41.0, 43.0, 30)
-lons = np.linspace(11.3, 14.2, 30)
+# Griglia bilanciata a 20x20 (400 punti) per evitare blocchi dell'API
+lats = np.linspace(41.0, 43.0, 20)
+lons = np.linspace(11.3, 14.2, 20)
 Lon, Lat = np.meshgrid(lons, lats)
-Data_Grid = np.zeros_like(Lon)
+
+# Inizializziamo la griglia a 20°C di default (così se un punto fallisce non fa righe blu a 0°C)
+Data_Grid = np.full_like(Lon, 20.0)
 
 def fetch_point(args):
     i, j, lat, lon = args
     url = f"https://api.open-meteo.com/v1/forecast?latitude={lat}&longitude={lon}&hourly=temperature_2m&models=icon_seamless"
     try:
-        response = requests.get(url, timeout=5)
+        response = requests.get(url, timeout=6)
         if response.status_code == 200:
             hourly_data = response.json().get("hourly", {}).get("temperature_2m", [])
             if hourly_data:
@@ -45,19 +47,16 @@ for i in range(lats.shape[0]):
     for j in range(lons.shape[0]):
         tasks.append((i, j, lats[i], lons[j]))
 
-print("Scaricamento griglia HD in corso...")
-# Usiamo 15 thread paralleli per scaricare 900 punti in un lampo
-with concurrent.futures.ThreadPoolExecutor(max_workers=15) as executor:
+print("Scaricamento griglia in corso...")
+# Usiamo 10 worker per non sovraccaricare l'API
+with concurrent.futures.ThreadPoolExecutor(max_workers=10) as executor:
     results = executor.map(fetch_point, tasks)
     for res in results:
         if res is not None:
             i, j, val = res
             Data_Grid[i, j] = val
 
-if np.all(Data_Grid == 0):
-    Data_Grid.fill(20.0)
-
-levels = np.arange(-5, 42, 0.5) # Livelli finissimi per sfumature dettagliate
+levels = np.arange(-5, 42, 1)
 cmap = plt.get_cmap('Spectral_r')
 
 fig = plt.figure(figsize=(10, 9), facecolor='#1a1a1a')
@@ -65,7 +64,6 @@ ax = plt.axes(projection=ccrs.PlateCarree())
 ax.set_facecolor('#1a1a1a')
 ax.set_extent([11.3, 14.1, 41.0, 42.8], crs=ccrs.PlateCarree())
 
-# Contour ad alta definizione
 mesh = ax.contourf(Lon, Lat, Data_Grid, transform=ccrs.PlateCarree(), cmap=cmap, levels=levels, extend='both', alpha=0.96, zorder=1)
 
 ax.add_feature(cfeature.OCEAN, facecolor='#122b39', zorder=2)
@@ -97,4 +95,4 @@ output_path = "mappe_output/mappa_lazio_cartopy.png"
 plt.savefig(output_path, dpi=300, bbox_inches='tight', facecolor=fig.get_facecolor(), edgecolor='none')
 plt.close(fig)
 
-print("Mappa HD definitiva generata con successo!")
+print("Mappa stabile generata con successo!")
