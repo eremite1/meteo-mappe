@@ -19,18 +19,20 @@ jobs:
         with:
           python-version: '3.10'
 
-      - name: Installa dipendenze
+      - name: Installa dipendenze di sistema e Python
         run: |
+          sudo apt-get update
+          sudo apt-get install -y libgeos-dev libproj-dev proj-data proj-bin
           python -m pip install --upgrade pip
-          pip install requests matplotlib
+          pip install requests matplotlib numpy shapely pyshp cartopy
 
       - name: Esegui script generazione archivio
         run: python genera_mappe.py
 
-      - name: Salva tutte le mappe su GitHub
+      - name: Salva mappa su GitHub
         run: |
           git config --global user.name "GitHub Actions Bot"
           git config --global user.email "actions@github.com"
-          git add mappe_output/
-          git commit -m "Aggiornamento archivio mappe multi-parametro [skip ci]" || exit 0
+          git add mappe_output/mappa_lazio_cartopy.png
+          git commit -m "Aggiornamento mappa Cartopy Lazio [skip ci]" || exit 0
           git push
