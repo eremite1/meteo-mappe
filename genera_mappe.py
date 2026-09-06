@@ -4,7 +4,6 @@ from ftplib import FTP
 
 print("Inizio generazione mappa meteo da Open-Meteo...")
 
-# 1. Coordinate di esempio centralizzate sull'Italia
 url = "https://api.open-meteo.com/v1/forecast?latitude=42.15&longitude=12.75&current=temperature_2m,cloud_cover,rain"
 response = requests.get(url)
 
@@ -15,10 +14,8 @@ if response.status_code == 200:
     
     print(f"Dati ricevuti con successo! Temp: {temp}°C, Nuvole: {clouds}%")
     
-    # Creiamo una cartella locale temporanea
     os.makedirs("mappe_output", exist_ok=True)
     
-    # Usiamo matplotlib per generare l'immagine della mappa
     import matplotlib.pyplot as plt
     plt.figure(figsize=(6, 6))
     plt.title(f"Test Mappa Meteo - Temp: {temp} C")
@@ -31,8 +28,7 @@ if response.status_code == 200:
     plt.close()
     print(f"Immagine salvata localmente in {output_path}")
 
-    # 2. Caricamento automatico via FTP nativo in Python
-    # Leggiamo i dati direttamente dalle "Secrets" di GitHub
+    # Caricamento via FTP nativo con percorso corretto
     ftp_server = os.environ.get("FTP_SERVER")
     ftp_user = os.environ.get("FTP_USERNAME")
     ftp_pass = os.environ.get("FTP_PASSWORD")
@@ -44,21 +40,20 @@ if response.status_code == 200:
             ftp.login(ftp_user, ftp_pass)
             print("Login FTP effettuato con successo!")
             
-            # Entriamo nella cartella di destinazione (creandola se non esiste)
-            target_dir = "/www.meteonerola.it/modelli"
+            # Navigazione passo-passo nelle cartelle esistenti su Aruba
+            ftp.cwd("www.meteonerola.it")
             
-            # Navighiamo o creiamo i rami delle cartelle se necessario
-            # Semplifichiamo spostandoci nella cartella principale del sito
             try:
-                ftp.cwd(target_dir)
+                ftp.cwd("modelli")
             except:
-                print(f"La cartella {target_dir} non esiste o non è raggiungibile.")
+                print("La cartella modelli non esiste, la creo...")
+                ftp.mkd("modelli")
+                ftp.cwd("modelli")
             
-            # Carichiamo il file
             with open(output_path, "rb") as file:
                 ftp.storbinary("STOR mappa_test.png", file)
             
-            print("File caricato con successo via FTP!")
+            print("File caricato con successo nella cartella modelli via FTP!")
             ftp.quit()
             
         except Exception as e:
