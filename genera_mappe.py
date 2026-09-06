@@ -29,21 +29,18 @@ for nome, coords in citta.items():
             "vento": current.get("wind_speed_10m", 0)
         }
 
-# Creazione dell'immagine pulita e professionale con Matplotlib
+# Creazione dell'immagine pulita con Matplotlib
 os.makedirs("mappe_output", exist_ok=True)
 fig, ax = plt.subplots(figsize=(8, 6))
 ax.axis('off')
 
-# Intestazione della mappa/infografica
 plt.title("Meteo Lazio - Modello ICON (Open-Meteo)", fontsize=14, fontweight='bold', pad=20, color='#1f4e79')
 
-# Intestazioni delle colonne
 ax.text(0.08, 0.85, "Località", fontsize=11, fontweight='bold', transform=ax.transAxes, color='#333333')
 ax.text(0.35, 0.85, "Temperatura", fontsize=11, fontweight='bold', transform=ax.transAxes, color='#333333')
 ax.text(0.60, 0.85, "Umidità", fontsize=11, fontweight='bold', transform=ax.transAxes, color='#333333')
 ax.text(0.80, 0.85, "Vento", fontsize=11, fontweight='bold', transform=ax.transAxes, color='#333333')
 
-# Inserimento dati delle città riga per riga
 y_pos = 0.73
 for nome, vals in dati_meteo.items():
     ax.text(0.08, y_pos, f"• {nome}", fontsize=11, transform=ax.transAxes, fontweight='semibold')
@@ -57,25 +54,25 @@ plt.savefig(output_path, dpi=150, bbox_inches='tight', facecolor='white')
 plt.close()
 print(f"Immagine salvata localmente in {output_path}")
 
-# Caricamento automatico su Aruba via FTP
+# Caricamento via FTP con navigazione passo-passo (stile FileZilla)
 ftp_server = os.environ.get("FTP_SERVER")
 ftp_user = os.environ.get("FTP_USERNAME")
 ftp_pass = os.environ.get("FTP_PASSWORD")
 
 if ftp_server and ftp_user and ftp_pass:
     print("Connessione al server FTP di Aruba...")
-    try:
-        ftp = FTP(ftp_server)
-        ftp.login(ftp_user, ftp_pass)
-        print("Login FTP effettuato con successo!")
-        
-        with open(output_path, "rb") as file:
-            ftp.storbinary("STOR /www.meteonerola.it/modelli/mappa_lazio.png", file)
-        
-        print("File caricato con successo in /www.meteonerola.it/modelli/mappa_lazio.png!")
-        ftp.quit()
-        
-    except Exception as e:
-        print(f"Errore durante l'upload FTP: {e}")
+    ftp = FTP(ftp_server)
+    ftp.login(ftp_user, ftp_pass)
+    print("Login FTP effettuato con successo!")
+    
+    # Entriamo nelle cartelle esattamente come faresti a mano
+    ftp.cwd("www.meteonerola.it")
+    ftp.cwd("modelli")
+    
+    with open(output_path, "rb") as file:
+        ftp.storbinary("STOR mappa_lazio.png", file)
+    
+    print("File mappa_lazio.png caricato con successo nella cartella modelli!")
+    ftp.quit()
 else:
-    print("Credenziali FTP non trovate nelle variabili d'ambiente.")
+    print("Credenziali FTP mancanti nelle variabili d'ambiente.")
