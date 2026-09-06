@@ -5,12 +5,11 @@ import concurrent.futures
 import matplotlib
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
-import matplotlib.colors as mcolors
 import cartopy.crs as ccrs
 import cartopy.feature as cfeature
 import cartopy.io.shapereader as shpreader
 
-print("=== GENERAZIONE MAPPA LAZIO HD ===")
+print("=== GENERAZIONE MAPPA LAZIO FLUIDA HD ==pis===")
 
 os.makedirs("mappe_output", exist_ok=True)
 
@@ -22,9 +21,9 @@ capoluoghi = {
     'VT': (12.1081, 42.4204)
 }
 
-# Griglia ad alta densità (25x25 = 625 punti)
-lats = np.linspace(41.0, 43.0, 25)
-lons = np.linspace(11.5, 14.0, 25)
+# Estendiamo leggermente la griglia oltre i bordi visibili per evitare tagli netti
+lats = np.linspace(40.5, 43.5, 30)
+lons = np.linspace(11.0, 14.5, 30)
 Lon, Lat = np.meshgrid(lons, lats)
 Data_Grid = np.zeros_like(Lon)
 
@@ -40,33 +39,32 @@ def fetch_point(args):
         pass
     return i, j, 20
 
-print("Scaricamento parallelo griglia HD in corso...")
 tasks = []
 for i in range(lats.shape[0]):
     for j in range(lons.shape[0]):
         tasks.append((i, j, lats[i], lons[j]))
 
-# Esecuzione in parallelo per massima velocità
 with concurrent.futures.ThreadPoolExecutor(max_workers=20) as executor:
     results = executor.map(fetch_point, tasks)
     for i, j, val in results:
         Data_Grid[i, j] = val
 
-levels = np.arange(0, 42, 1) # Livelli più fitti per sfumature morbide
+levels = np.arange(0, 42, 1)
 cmap = plt.get_cmap('Spectral_r')
 
-print("Disegno della mappa in alta definizione...")
-fig = plt.figure(figsize=(12, 11), facecolor='#ffffff')
+fig = plt.figure(figsize=(11, 10), facecolor='#ffffff')
 ax = plt.axes(projection=ccrs.PlateCarree())
 ax.set_facecolor('#eef6fc')
-ax.set_extent([11.2, 14.2, 40.8, 43.0], crs=ccrs.PlateCarree())
 
-# Usiamo shading gouraud/antialiasing indiretto tramite contourf fitto
+# Fissiamo i confini visibili della mappa del Lazio in modo pulito
+ax.set_extent([11.3, 14.1, 41.0, 42.9], crs=ccrs.PlateCarree())
+
+# Usiamo shading e contourf riempiendo l'area
 mesh = ax.contourf(Lon, Lat, Data_Grid, transform=ccrs.PlateCarree(), cmap=cmap, levels=levels, extend='both', alpha=0.90, zorder=1)
 
 ax.add_feature(cfeature.OCEAN, facecolor='#b4e6ff', zorder=2)
-ax.add_feature(cfeature.COASTLINE, linewidth=0.8, edgecolor='#222222', zorder=3)
-ax.add_feature(cfeature.BORDERS, linewidth=0.6, edgecolor='#444444', zorder=3)
+ax.add_feature(cfeature.COASTLINE, linewidth=0.9, edgecolor='#222222', zorder=3)
+ax.add_feature(cfeature.BORDERS, linewidth=0.7, edgecolor='#444444', zorder=3)
 
 try:
     shapefile = shpreader.natural_earth(resolution='10m', category='cultural', name='admin_1_states_provinces')
@@ -85,13 +83,12 @@ cbar = plt.colorbar(mesh, ax=ax, orientation='vertical', pad=0.03, shrink=0.75, 
 cbar.set_label('Temperatura a 2m [°C]', color='#000000', fontsize=11, fontweight='bold', labelpad=10)
 cbar.ax.tick_params(labelsize=10)
 
-fig.text(0.5, 0.91, "Modello ICON - Lazio | Temperatura a 2m (HD)", fontsize=14, fontweight='bold', color='#111111', ha='center')
+fig.text(0.5, 0.91, "Modello ICON - Lazio | Temperatura a 2m", fontsize=14, fontweight='bold', color='#111111', ha='center')
 ax.text(0.97, 0.03, 'www.meteonerola.it', transform=ax.transAxes, fontsize=10, fontweight='bold', color='#111111', 
         ha='right', va='bottom', zorder=10, bbox=dict(boxstyle='round,pad=0.4', facecolor='#ffffff', alpha=0.9, edgecolor='#666666'))
 
 output_path = "mappe_output/mappa_lazio_cartopy.png"
-# Salvataggio in alta definizione (DPI 300)
 plt.savefig(output_path, dpi=300, bbox_inches='tight', facecolor=fig.get_facecolor(), edgecolor='none')
 plt.close(fig)
 
-print(f"Mappa HD creata con successo in {output_path}!")
+print("Mappa corretta e fluidificata con successo!")
