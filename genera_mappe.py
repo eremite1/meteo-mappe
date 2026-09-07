@@ -11,8 +11,6 @@ import cartopy.crs as ccrs
 import cartopy.feature as cfeature
 import cartopy.io.shapereader as shpreader
 
-print("=== GENERAZIONE ARCHIVIO MAPPE ORARIE ICON-2I (OTTIMIZZATO) ===")
-
 OUTPUT_DIR = "mappe_output"
 os.makedirs(OUTPUT_DIR, exist_ok=True)
 
@@ -24,12 +22,12 @@ capoluoghi = {
     'VT': (12.1081, 42.4204)
 }
 
-# Griglia bilanciata a 28x28 = 784 punti (dettaglio finissimo ma sicuro per le API)
 lats = np.linspace(41.0, 42.9, 28)
 lons = np.linspace(11.2, 14.2, 28)
 Lon, Lat = np.meshgrid(lons, lats)
 
-variables = ['temperature_2m']
+# Aggiungiamo 'precipitation' alle variabili da scaricare e mappare
+variables = ['temperature_2m', 'precipitation']
 HOURS_TO_GENERATE = 24
 
 def fetch_point_data(args):
@@ -37,7 +35,6 @@ def fetch_point_data(args):
     vars_str = ",".join(variables)
     url = f"https://api.open-meteo.com/v1/forecast?latitude={lat}&longitude={lon}&hourly={vars_str}&models=italia_meteo_arpae_icon_2i"
     
-    # Sistema di retry in caso di rallentamenti temporanei dell'API
     for attempt in range(3):
         try:
             response = requests.get(url, timeout=10)
@@ -45,7 +42,7 @@ def fetch_point_data(args):
                 data = response.json().get("hourly", {})
                 return i, j, data
             elif response.status_code == 429:
-                time.sleep(1 + attempt)  # Attende se c'è troppo traffico
+                time.sleep(1 + attempt)
         except:
             pass
     return None
@@ -55,14 +52,13 @@ for i in range(lats.shape[0]):
     for j in range(lons.shape[0]):
         tasks.append((i, j, lats[i], lons[j]))
 
-print("Scaricamento dati stabili dal modello ICON-2I in corso...")
+print("Scaricamento dati temperatura e precipitazioni dal modello ICON-2I...")
 raw_grid_data = {}
 for var in variables:
     raw_grid_data[var] = np.full((len(lats), len(lons), HOURS_TO_GENERATE), np.nan)
 
 times_list = []
 
-# Concorrenza ridotta a 6 worker per garantire il 100% di successo delle chiamate
 with concurrent.futures.ThreadPoolExecutor(max_workers=6) as executor:
     results = executor.map(fetch_point_data, tasks)
     for res in results:
@@ -75,17 +71,19 @@ with concurrent.futures.ThreadPoolExecutor(max_workers=6) as executor:
                 for h in range(min(HOURS_TO_GENERATE, len(values))):
                     raw_grid_data[var][i, j, h] = float(values[h])
 
-# Generazione delle mappe
 for var in variables:
     for h in range(HOURS_TO_GENERATE):
         Data_Grid = raw_grid_data[var][:, :, h]
         
-        # Riempimento di sicurezza per eventuali buchi residui
+        # Gestione NaN specifica per variabile (0 per la pioggia, media per la temperatura)
         if np.isnan(Data_Grid).any():
-            mean_val = np.nanmean(Data_Grid)
-            if np.isnan(mean_val):
-                mean_val = 15.0
-            Data_Grid = np.nan_to_num(Data_Grid, nan=mean_val)
+            if var == 'precipitation':
+                Data_Grid = np.nan_to_num(Data_Grid, nan=0.0)
+            else:
+                mean_val = np.nanmean(Data_Grid)
+                if np.isnan(mean_val):
+                    mean_val = 15.0
+                Data_Grid = np.nan_to_num(Data_Grid, nan=mean_val)
 
         valid_time_str = ""
         if times_list and h < len(times_list):
@@ -100,15 +98,24 @@ for var in variables:
             target_utc = base_utc + timedelta(hours=h)
             valid_time_str = target_utc.strftime("%d %B %Y - Ore: %H:%M UTC")
 
-        levels = np.arange(-5, 42, 1)
-        cmap = plt.get_cmap('Spectral_r')
+        # Configurazione grafica differenziata in base alla variabile
+        if var == 'temperature_2m':
+            levels = np.arange(-5, 42, 1)
+            cmap = plt.get_cmap('Spectral_r')
+            title_text = "Modello ICON-2I - Lazio | Temperatura (°C)"
+            cbar_label = "Temperatura (°C)"
+        elif var == 'precipitation':
+            levels = [0, 0.1, 0.5, 1, 2, 4, 7, 10, 15, 20, 30, 50]
+            cmap = plt.get_cmap('Blues')
+            title_text = "Modello ICON-2I - Lazio | Precipitazioni (mm)"
+            cbar_label = "Precipitazioni (mm)"
 
         fig = plt.figure(figsize=(10, 8), facecolor='#ffffff')
         ax = plt.axes(projection=ccrs.PlateCarree())
         ax.set_facecolor('#f4f4f4')
         ax.set_extent([11.3, 14.1, 41.0, 42.8], crs=ccrs.PlateCarree())
 
-        mesh = ax.contourf(Lon, Lat, Data_Grid, transform=ccrs.PlateCarree(), cmap=cmap, levels=levels, extend='both', alpha=0.94, zorder=1)
+        mesh = ax.contourf(Lon, Lat, Data_Grid, transform=ccrs.PlateCarree(), cmap=cmap, levels=levels, extend='max' if var=='precipitation' else 'both', alpha=0.94, zorder=1)
 
         ax.add_feature(cfeature.OCEAN, facecolor='#cce6ff', zorder=2)
         ax.add_feature(cfeature.COASTLINE, linewidth=1.0, edgecolor='#333333', zorder=3)
@@ -127,11 +134,11 @@ for var in variables:
             ax.text(lon_c + 0.03, lat_c, sigla, transform=ccrs.PlateCarree(), fontsize=8, fontweight='bold', color='black', 
                     bbox=dict(boxstyle='square,pad=0.15', facecolor='white', alpha=0.85, edgecolor='#cccccc'), zorder=6)
 
-        cbar = fig.colorbar(mesh, ax=ax, orientation='vertical', pad=0.03, shrink=0.82, aspect=25, extend='both')
-        cbar.set_label('Temperatura (°C)', color='black', fontsize=10, fontweight='bold')
+        cbar = fig.colorbar(mesh, ax=ax, orientation='vertical', pad=0.03, shrink=0.82, aspect=25, extend='max' if var=='precipitation' else 'both')
+        cbar.set_label(cbar_label, color='black', fontsize=10, fontweight='bold')
         cbar.ax.tick_params(labelsize=9, colors='black')
 
-        fig.text(0.50, 0.93, "Modello ICON-2I - Lazio | Temperatura (°C)", fontsize=12, fontweight='bold', color='black', ha='center')
+        fig.text(0.50, 0.93, title_text, fontsize=12, fontweight='bold', color='black', ha='center')
         fig.text(0.50, 0.89, f"Valido il: {valid_time_str}", fontsize=10, fontweight='bold', color='#333333', ha='center')
 
         ax.text(0.97, 0.03, 'www.meteonerola.it', transform=ax.transAxes, fontsize=9, fontweight='bold', color='black', 
@@ -141,4 +148,4 @@ for var in variables:
         plt.savefig(os.path.join(OUTPUT_DIR, filename), dpi=300, bbox_inches='tight', facecolor=fig.get_facecolor(), edgecolor='none')
         plt.close(fig)
 
-print("Tutte le mappe sono state generate perfettamente senza buchi!")
+print("Generazione completata per temperatura e precipitazioni!")
