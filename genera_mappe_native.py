@@ -12,7 +12,7 @@ import cartopy.crs as ccrs
 import cartopy.feature as cfeature
 import cartopy.io.shapereader as shpreader
 
-print("=== GENERAZIONE MAPPE NATIVE 72H (TEMPERATURA & PRECIPITAZIONI) ===")
+print("=== GENERAZIONE MAPPE NATIVE 72H - DINAMICHE (ICON-2I) ===")
 
 OUTPUT_DIR = "mappe_native"
 os.makedirs(OUTPUT_DIR, exist_ok=True)
@@ -25,8 +25,8 @@ capoluoghi = {
     'VT': (12.1081, 42.4204)
 }
 
-lats = np.linspace(41.0, 42.9, 30)
-lons = np.linspace(11.2, 14.2, 30)
+lats = np.linspace(41.0, 42.9, 45)
+lons = np.linspace(11.2, 14.2, 45)
 Lon, Lat = np.meshgrid(lons, lats)
 
 variables = ['temperature_2m', 'precipitation']
@@ -53,7 +53,7 @@ for i in range(lats.shape[0]):
     for j in range(lons.shape[0]):
         tasks.append((i, j, lats[i], lons[j]))
 
-print("Scaricamento dati 72h dal modello in corso...")
+print("Scaricamento dati 72h in corso...")
 raw_grid_data = {var: np.full((len(lats), len(lons), HOURS_TO_GENERATE), np.nan) for var in variables}
 times_list = []
 
@@ -82,7 +82,7 @@ for var in variables:
                     mean_val = 15.0
                 Data_Grid = np.nan_to_num(Data_Grid, nan=mean_val)
 
-        zoom_factor = 4
+        zoom_factor = 5
         HighRes_Grid = zoom(Data_Grid, zoom_factor, order=3)
         
         hires_lats = np.linspace(lats.min(), lats.max(), lats.shape[0] * zoom_factor)
@@ -102,9 +102,14 @@ for var in variables:
             target_utc = base_utc + timedelta(hours=h)
             valid_time_str = target_utc.strftime("%d %B %Y - Ore: %H:%M UTC")
 
-        # Configurazione grafica dedicata per variabile basata sui tuoi layout
+        # Configurazione intelligente dei livelli in base alla variabile
         if var == 'temperature_2m':
-            levels = np.arange(10, 42, 2)
+            # Auto-scaling dinamico basato sui valori reali della mappa (funziona perfettamente sia a -5°C che a 40°C)
+            t_min = int(np.floor(np.min(HighRes_Grid)))
+            t_max = int(np.ceil(np.max(HighRes_Grid)))
+            if t_max - t_min < 6:  # Evita range troppo stretti in caso di isotermia
+                t_max = t_min + 6
+            levels = np.arange(t_min, t_max + 1, 1)
             cmap = plt.get_cmap('Spectral_r')
             title_text = "Modello ICON-2I - Lazio | Temperatura (°C)"
             cbar_label = "Temperatura (°C)"
@@ -121,7 +126,7 @@ for var in variables:
         ax.set_facecolor('#ffffff')
         ax.set_extent([11.3, 14.1, 41.0, 42.8], crs=ccrs.PlateCarree())
 
-        mesh = ax.contourf(HiRes_Lon, HiRes_Lat, HighRes_Grid, transform=ccrs.PlateCarree(), cmap=cmap, levels=levels, extend=extend_val, alpha=0.9, zorder=1)
+        mesh = ax.contourf(HiRes_Lon, HiRes_Lat, HighRes_Grid, transform=ccrs.PlateCarree(), cmap=cmap, levels=levels, extend=extend_val, alpha=0.92, zorder=1)
 
         ax.add_feature(cfeature.OCEAN, facecolor='#e6f2ff', zorder=2)
         ax.add_feature(cfeature.COASTLINE, linewidth=0.8, edgecolor='#333333', zorder=3)
@@ -154,4 +159,4 @@ for var in variables:
         plt.savefig(os.path.join(OUTPUT_DIR, filename), dpi=300, bbox_inches='tight', facecolor=fig.get_facecolor(), edgecolor='none')
         plt.close(fig)
 
-print("Elaborazione 72h completata con successo per tutte le variabili!")
+print("Elaborazione 72h dinamica completata con successo!")
