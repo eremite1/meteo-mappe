@@ -8,11 +8,12 @@ from scipy.ndimage import zoom
 import matplotlib
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
+from matplotlib.colors import ListedColormap, BoundaryNorm
 import cartopy.crs as ccrs
 import cartopy.feature as cfeature
 import cartopy.io.shapereader as shpreader
 
-print("=== GENERAZIONE MAPPE NATIVE 72H - DINAMICHE (ICON-2I) ===")
+print("=== GENERAZIONE MAPPE NATIVE 72H - METEOCLOUD STYLE (ICON-2I) ===")
 
 OUTPUT_DIR = "mappe_native"
 os.makedirs(OUTPUT_DIR, exist_ok=True)
@@ -71,12 +72,16 @@ with concurrent.futures.ThreadPoolExecutor(max_workers=8) as executor:
 
 for var in variables:
     for h in range(HOURS_TO_GENERATE):
-        Data_Grid = raw_grid_data[var][:, :, h]
-        
-        if np.isnan(Data_Grid).any():
-            if var == 'precipitation':
-                Data_Grid = np.nan_to_num(Data_Grid, nan=0.0)
+        if var == 'precipitation':
+            # Calcolo della cumulata a 3 ore (h, h-1, h-2)
+            if h >= 2:
+                Data_Grid = raw_grid_data[var][:, :, h] + raw_grid_data[var][:, :, h-1] + raw_grid_data[var][:, :, h-2]
             else:
+                Data_Grid = raw_grid_data[var][:, :, h]
+            Data_Grid = np.nan_to_num(Data_Grid, nan=0.0)
+        else:
+            Data_Grid = raw_grid_data[var][:, :, h]
+            if np.isnan(Data_Grid).any():
                 mean_val = np.nanmean(Data_Grid)
                 if np.isnan(mean_val):
                     mean_val = 15.0
@@ -102,23 +107,38 @@ for var in variables:
             target_utc = base_utc + timedelta(hours=h)
             valid_time_str = target_utc.strftime("%d %B %Y - Ore: %H:%M UTC")
 
-        # Configurazione intelligente dei livelli in base alla variabile
         if var == 'temperature_2m':
-            # Auto-scaling dinamico basato sui valori reali della mappa (funziona perfettamente sia a -5°C che a 40°C)
             t_min = int(np.floor(np.min(HighRes_Grid)))
             t_max = int(np.ceil(np.max(HighRes_Grid)))
-            if t_max - t_min < 6:  # Evita range troppo stretti in caso di isotermia
+            if t_max - t_min < 6:
                 t_max = t_min + 6
             levels = np.arange(t_min, t_max + 1, 1)
             cmap = plt.get_cmap('Spectral_r')
+            norm = None
             title_text = "Modello ICON-2I - Lazio | Temperatura (°C)"
             cbar_label = "Temperatura (°C)"
             extend_val = 'both'
         else:
-            levels = [0.1, 2.0, 5.0, 10.0, 20.0, 30.0, 50.0, 75.0, 100.0]
-            cmap = plt.get_cmap('BuPu')
-            title_text = "Modello ICON-2I - Lazio | Precipitazioni (mm)"
-            cbar_label = "Precipitazioni (mm)"
+            # Scala cromatica ufficiale stile Meteocloud per precipitazioni su 3h (in mm)
+            bounds = [0.0, 0.5, 2.0, 5.0, 10.0, 15.0, 20.0, 30.0, 50.0, 75.0, 100.0, 150.0]
+            hex_colors = [
+                '#ffffff', # 0.0 - 0.5 (trasparente/bianco)
+                '#d0d0ff', # 0.5 - 2.0 (azzurro chiaro)
+                '#60b0ff', # 2.0 - 5.0 (blu)
+                '#0040ff', # 5.0 - 10.0 (blu scuro)
+                '#00d000', # 10.0 - 15.0 (verde)
+                '#70e000', # 15.0 - 20.0 (verde chiaro)
+                '#ffff00', # 20.0 - 30.0 (giallo)
+                '#ffa500', # 30.0 - 50.0 (arancione)
+                '#ff0000', # 50.0 - 75.0 (rosso)
+                '#c000c0', # 75.0 - 100.0 (viola)
+                '#800080'  # 100.0+ (viola scuro)
+            ]
+            cmap = ListedColormap(hex_colors)
+            norm = BoundaryNorm(bounds, cmap.N)
+            levels = bounds
+            title_text = "Modello ICON-2I - Lazio | Precipitazioni su 3h (mm)"
+            cbar_label = "Precipitazioni cumulate 3h (mm)"
             extend_val = 'max'
 
         fig = plt.figure(figsize=(10, 8), facecolor='#ffffff')
@@ -126,7 +146,10 @@ for var in variables:
         ax.set_facecolor('#ffffff')
         ax.set_extent([11.3, 14.1, 41.0, 42.8], crs=ccrs.PlateCarree())
 
-        mesh = ax.contourf(HiRes_Lon, HiRes_Lat, HighRes_Grid, transform=ccrs.PlateCarree(), cmap=cmap, levels=levels, extend=extend_val, alpha=0.92, zorder=1)
+        if var == 'precipitation':
+            mesh = ax.contourf(HiRes_Lon, HiRes_Lat, HighRes_Grid, transform=ccrs.PlateCarree(), cmap=cmap, norm=norm, levels=levels, extend=extend_val, alpha=0.92, zorder=1)
+        else:
+            mesh = ax.contourf(HiRes_Lon, HiRes_Lat, HighRes_Grid, transform=ccrs.PlateCarree(), cmap=cmap, levels=levels, extend=extend_val, alpha=0.92, zorder=1)
 
         ax.add_feature(cfeature.OCEAN, facecolor='#e6f2ff', zorder=2)
         ax.add_feature(cfeature.COASTLINE, linewidth=0.8, edgecolor='#333333', zorder=3)
@@ -155,8 +178,9 @@ for var in variables:
         ax.text(0.97, 0.03, 'www.meteonerola.it', transform=ax.transAxes, fontsize=8, fontweight='bold', color='black', 
                 ha='right', va='bottom', zorder=10, bbox=dict(boxstyle='square,pad=0.3', facecolor='white', alpha=0.9, edgecolor='#aaaaaa'))
 
-        filename = f"{var}_h{h:02d}.png"
+        prefix = "precipitation" if var == 'precipitation' else "temperature_2m"
+        filename = f"{prefix}_h{h:02d}.png"
         plt.savefig(os.path.join(OUTPUT_DIR, filename), dpi=300, bbox_inches='tight', facecolor=fig.get_facecolor(), edgecolor='none')
         plt.close(fig)
 
-print("Elaborazione 72h dinamica completata con successo!")
+print("Elaborazione 72h completata con successo con stile Meteocloud!")
