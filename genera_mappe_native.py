@@ -13,7 +13,7 @@ import cartopy.crs as ccrs
 import cartopy.feature as cfeature
 import cartopy.io.shapereader as shpreader
 
-print("=== GENERAZIONE MAPPE NATIVE 72H - METEOCLOUD STYLE (ICON-2I) ===")
+print("=== GENERAZIONE MAPPE NATIVE 72H - ALTA RISOLUZIONE METEOCLOUD (ICON-2I) ===")
 
 OUTPUT_DIR = "mappe_native"
 os.makedirs(OUTPUT_DIR, exist_ok=True)
@@ -26,8 +26,9 @@ capoluoghi = {
     'VT': (12.1081, 42.4204)
 }
 
-lats = np.linspace(41.0, 42.9, 45)
-lons = np.linspace(11.2, 14.2, 45)
+# Griglia iniziale ad alta densità (70x70) per catturare ogni minimo dettaglio del territorio
+lats = np.linspace(41.0, 42.9, 70)
+lons = np.linspace(11.2, 14.2, 70)
 Lon, Lat = np.meshgrid(lons, lats)
 
 variables = ['temperature_2m', 'precipitation']
@@ -54,7 +55,7 @@ for i in range(lats.shape[0]):
     for j in range(lons.shape[0]):
         tasks.append((i, j, lats[i], lons[j]))
 
-print("Scaricamento dati 72h in corso...")
+print("Scaricamento dati 72h ad alta definizione in corso...")
 raw_grid_data = {var: np.full((len(lats), len(lons), HOURS_TO_GENERATE), np.nan) for var in variables}
 times_list = []
 
@@ -87,7 +88,8 @@ for var in variables:
                     mean_val = 15.0
                 Data_Grid = np.nan_to_num(Data_Grid, nan=mean_val)
 
-        zoom_factor = 5
+        # Fattore di zoom a 6x per bordi taglienti e definiti come sui portali professionali
+        zoom_factor = 6
         HighRes_Grid = zoom(Data_Grid, zoom_factor, order=3)
         
         hires_lats = np.linspace(lats.min(), lats.max(), lats.shape[0] * zoom_factor)
@@ -119,7 +121,7 @@ for var in variables:
             cbar_label = "Temperatura (°C)"
             extend_val = 'both'
         else:
-            # Scala cromatica ufficiale stile Meteocloud per precipitazioni su 3h (in mm)
+            # Scala cromatica ufficiale Meteocloud per precipitazioni su 3h (in mm)
             bounds = [0.0, 0.5, 2.0, 5.0, 10.0, 15.0, 20.0, 30.0, 50.0, 75.0, 100.0, 150.0]
             hex_colors = [
                 '#ffffff', # 0.0 - 0.5 (trasparente/bianco)
@@ -183,4 +185,4 @@ for var in variables:
         plt.savefig(os.path.join(OUTPUT_DIR, filename), dpi=300, bbox_inches='tight', facecolor=fig.get_facecolor(), edgecolor='none')
         plt.close(fig)
 
-print("Elaborazione 72h completata con successo con stile Meteocloud!")
+print("Elaborazione 72h ad alta risoluzione completata con successo!")
