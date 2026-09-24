@@ -1,3 +1,4 @@
 requests
 folium
 protobuf
+gtfs-realtime-bindings
