@@ -28,11 +28,11 @@ def calcola_distanza(lat1, lon1, lat2, lon2):
 
 
 def main():
-  # Creazione mappa con stile scuro/tecnologico di base
+  # Creazione mappa con sfondo OpenStreetMap standard (libero e senza chiavi API richieste)
   mappa = folium.Map(
       location=[CENTRO_LAT, CENTRO_LON],
       zoom_start=11,
-      tiles="CartoDB dark_matter",
+      tiles="OpenStreetMap",
   )
 
   try:
@@ -61,7 +61,7 @@ def main():
           if dist <= RAGGIO_KM:
             count += 1
 
-            # HTML personalizzato per mettere il numero della linea direttamente sul marker (stile badge futuristico)
+            # HTML personalizzato per mettere il numero della linea direttamente sul marker
             html_icon = f"""
                         <div style="
                             background: #00ffcc; 
@@ -70,8 +70,8 @@ def main():
                             font-size: 11px; 
                             padding: 2px 5px; 
                             border-radius: 4px; 
-                            border: 2px solid #ffffff;
-                            box-shadow: 0 0 8px #00ffcc;
+                            border: 2px solid #000000;
+                            box-shadow: 0 0 5px rgba(0,0,0,0.3);
                             text-align: center;
                             white-space: nowrap;">
                             🚌 {route_id}
@@ -103,7 +103,7 @@ def main():
   except Exception as e:
     print(f"Errore nel recupero dati: {e}")
 
-  # Salva direttamente come index.html o mappa_bus.html
+  # Salva direttamente come mappa_bus.html
   mappa.save("mappa_bus.html")
   print("Mappa aggiornata con successo!")
 
