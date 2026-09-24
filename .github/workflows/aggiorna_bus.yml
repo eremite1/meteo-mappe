@@ -1,0 +1,36 @@
+name: Aggiorna Mappa Bus ATAC
+
+on:
+  schedule:
+    - cron: '*/15 * * * *' # Si attiva automaticamente ogni 15 minuti
+  workflow_dispatch: # Permette di avviarlo a mano quando vuoi
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
+      - name: Setup Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.10'
+
+      - name: Installa dipendenze bus
+        run: |
+          pip install -r requirements-bus.txt
+
+      - name: Esegui script Bus
+        run: |
+          python radar_bus.py
+
+      - name: Salva la mappa nel repository
+        run: |
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+          git add mappa_bus.html
+          git diff --quiet && git diff --staged --quiet || (git commit -m "Aggiornamento automatico mappa bus ATAC" && git push)
