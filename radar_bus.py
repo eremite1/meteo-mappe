@@ -7,10 +7,8 @@ CENTRO_LAT = 41.9028
 CENTRO_LON = 12.4964
 RAGGIO_KM = 5.0
 
-# Endpoint alternativo ufficiale Open Data Roma Mobilità
-URL_ATAC = (
-    "https://romamobilita.it/sites/default/files/rome_gtfs_rt_vehicle_positions.pb"
-)
+# URL Ufficiale estratto direttamente dal portale Open Data ATAC
+URL_ATAC = "https://romamobilita.it/sites/default/files/rome_rtgtfs_vehicle_positions_feed.pb"
 
 
 def calcola_distanza(lat1, lon1, lat2, lon2):
@@ -52,6 +50,7 @@ def main():
 
   bus_trovati = 0
   try:
+    print("Scaricamento dal link ufficiale ATAC...")
     response = requests.get(URL_ATAC, headers=headers, timeout=15)
     print(f"HTTP Status: {response.status_code}, Bytes: {len(response.content)}")
 
@@ -74,30 +73,13 @@ def main():
               bus_trovati += 1
               folium.Marker(
                   [lat, lon],
-                  popup=f"Linea: {route_id}",
+                  popup=f"Linea: {route_id} (ID: {veh_id})",
                   icon=folium.Icon(color="green", icon="bus", prefix="fa"),
               ).add_to(mappa)
-  except Exception as e:
-    print(f"Errore lettura feed: {e}")
 
-  # FALLBACK DI EMERGENZA: Se l'API ATAC non risponde o è vuota, inseriamo
-  # dei punti di test vicini al centro per verificare che la mappa funzioni.
-  if bus_trovati == 0:
-    print(
-        "API ATAC temporaneamente vuota o irraggiungibile. Inserisco punti di"
-        " test."
-    )
-    punti_test = [
-        (41.9050, 12.4920, "TEST-64 (Linea 64)"),
-        (41.9000, 12.5010, "TEST-40 (Linea 40)"),
-        (41.8980, 12.4900, "TEST-170 (Linea 170)"),
-    ]
-    for lat, lon, nome in punti_test:
-      folium.Marker(
-          [lat, lon],
-          popup=nome,
-          icon=folium.Icon(color="orange", icon="bus", prefix="fa"),
-      ).add_to(mappa)
+      print(f"Trovati {bus_trovati} autobus reali nel raggio.")
+  except Exception as e:
+    print(f"Errore: {e}")
 
   mappa.save("mappa_bus.html")
   print("Mappa salvata con successo.")
