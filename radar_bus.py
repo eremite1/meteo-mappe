@@ -3,10 +3,9 @@ from google.transit import gtfs_realtime_pb2
 import requests
 import folium
 
-# CONFIGURAZIONE (Modifica coordinate e raggio in km)
-CENTRO_LAT = 41.9028  # Latitudine del centro (es. Roma)
-CENTRO_LON = 12.4964  # Longitudine del centro
-RAGGIO_KM = 5.0  # Raggio di ricerca bus in km
+CENTRO_LAT = 41.9028
+CENTRO_LON = 12.4964
+RAGGIO_KM = 5.0
 
 URL_ATAC = (
     "https://romamobilita.it/sites/default/files/rome_gtfs_rt_vehicle_positions.pb"
@@ -36,62 +35,53 @@ def main():
       color="blue",
       fill=True,
       fill_opacity=0.08,
-      popup=f"Raggio di ricerca: {RAGGIO_KM} km",
   ).add_to(mappa)
 
   folium.Marker(
       [CENTRO_LAT, CENTRO_LON],
-      popup="Punto di riferimento",
+      popup="Centro",
       icon=folium.Icon(color="red", icon="home", prefix="fa"),
   ).add_to(mappa)
 
-  try:
-    print("Scaricamento dati in tempo reale da ATAC...")
-    response = requests.get(URL_ATAC, timeout=15)
+  print("Scaricamento dati in tempo reale da ATAC...")
+  response = requests.get(URL_ATAC, timeout=15)
+  print(f"Codice HTTP risposta: {response.status_code}")
+  print(f"Dimensione dati scaricati: {len(response.content)} bytes")
 
-    if response.status_code == 200:
-      feed = gtfs_realtime_pb2.FeedMessage()
-      feed.ParseFromString(response.content)
+  feed = gtfs_realtime_pb2.FeedMessage()
+  feed.ParseFromString(response.content)
 
-      bus_trovati = 0
-      for entity in feed.entity:
-        if entity.HasField("vehicle"):
-          veh = entity.vehicle
-          lat = veh.position.latitude
-          lon = veh.position.longitude
+  print(f"Totale entità nel feed: {len(feed.entity)}")
 
-          # Verifica che le coordinate siano valide (intorno a Roma)
-          if 41.0 < lat < 42.5 and 11.5 < lon < 13.5:
-            route_id = (
-                veh.trip.route_id if veh.HasField("trip") else "Sconosciuta"
-            )
-            veh_id = (
-                veh.vehicle.id if veh.HasField("vehicle") else "ID Sconosciuto"
-            )
+  bus_trovati = 0
+  for entity in feed.entity:
+    if entity.HasField("vehicle"):
+      veh = entity.vehicle
+      lat = veh.position.latitude
+      lon = veh.position.longitude
 
-            distanza = calcola_distanza(CENTRO_LAT, CENTRO_LON, lat, lon)
+      # Stampiamo le prime coordinate che incontra per diagnostica
+      if bus_trovati < 3:
+        print(f"Trovato veicolo grezzo: lat={lat}, lon={lon}")
 
-            if distanza <= RAGGIO_KM:
-              bus_trovati += 1
-              popup_text = f"<b>Linea:</b> {route_id}<br><b>Mezzo ID:</b> {veh_id}<br><b>Distanza:</b> {distanza:.2f} km"
+      if 40.0 < lat < 43.0 and 11.0 < lon < 14.0:
+        route_id = veh.trip.route_id if veh.HasField("trip") else "N/D"
+        veh_id = veh.vehicle.id if veh.HasField("vehicle") else "N/D"
 
-              folium.Marker(
-                  [lat, lon],
-                  popup=popup_text,
-                  icon=folium.Icon(color="green", icon="bus", prefix="fa"),
-              ).add_to(mappa)
+        distanza = calcola_distanza(CENTRO_LAT, CENTRO_LON, lat, lon)
 
-      print(
-          f"Trovati e mappati {bus_trovati} autobus nel raggio di"
-          f" {RAGGIO_KM} km."
-      )
-    else:
-      print(f"Errore download ATAC: {response.status_code}")
-  except Exception as e:
-    print(f"Errore: {e}")
+        if distanza <= RAGGIO_KM:
+          bus_trovati += 1
+          popup_text = f"<b>Linea:</b> {route_id}<br>Mezzo: {veh_id}<br>Dist: {distanza:.2f}km"
+          folium.Marker(
+              [lat, lon],
+              popup=popup_text,
+              icon=folium.Icon(color="green", icon="bus", prefix="fa"),
+          ).add_to(mappa)
 
+  print(f"Totale autobus inseriti nel raggio: {bus_trovati}")
   mappa.save("mappa_bus.html")
-  print("Mappa generata con successo!")
+  print("Mappa salvata correttamente.")
 
 
 if __name__ == "__main__":
