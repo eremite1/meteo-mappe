@@ -17,7 +17,7 @@
             <meta name="viewport" content="width=device-width,
                 initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
             <style>
-                #map_b4247bf5c1ccde4f3a6c65ae5dc4b297 {
+                #map_6a462eb974a83fdece38c4b7b1c45470 {
                     position: relative;
                     width: 100.0%;
                     height: 100.0%;
@@ -54,19 +54,19 @@
 <body>
     
     
-            <div class="folium-map" id="map_b4247bf5c1ccde4f3a6c65ae5dc4b297" ></div>
+            <div class="folium-map" id="map_6a462eb974a83fdece38c4b7b1c45470" ></div>
         
 </body>
 <script>
     
     
-            var map_b4247bf5c1ccde4f3a6c65ae5dc4b297 = L.map(
-                "map_b4247bf5c1ccde4f3a6c65ae5dc4b297",
+            var map_6a462eb974a83fdece38c4b7b1c45470 = L.map(
+                "map_6a462eb974a83fdece38c4b7b1c45470",
                 {
                     center: [41.9028, 12.4964],
                     crs: L.CRS.EPSG3857,
                     ...{
-  "zoom": 12,
+  "zoom": 11,
   "zoomControl": true,
   "preferCanvas": false,
 }
@@ -78,7 +78,7 @@
 
         
     
-            var tile_layer_8543de3c2d6c93f06d9d7e3f04ae3501 = L.tileLayer(
+            var tile_layer_52f3db861a2bea618a12dd97e01d129c = L.tileLayer(
                 "https://tile.openstreetmap.org/{z}/{x}/{y}.png",
                 {
   "minZoom": 0,
@@ -95,40 +95,40 @@
             );
         
     
-            tile_layer_8543de3c2d6c93f06d9d7e3f04ae3501.addTo(map_b4247bf5c1ccde4f3a6c65ae5dc4b297);
+            tile_layer_52f3db861a2bea618a12dd97e01d129c.addTo(map_6a462eb974a83fdece38c4b7b1c45470);
         
     
-            var circle_84b350a6a0b21c4f8ac8f525ec905ba7 = L.circle(
+            var circle_d5d3725026affb0226c2fc1816fe6fb3 = L.circle(
                 [41.9028, 12.4964],
-                {"bubblingMouseEvents": true, "color": "blue", "dashArray": null, "dashOffset": null, "fill": true, "fillColor": "blue", "fillOpacity": 0.05, "fillRule": "evenodd", "lineCap": "round", "lineJoin": "round", "opacity": 1.0, "radius": 35000.0, "stroke": true, "weight": 3}
-            ).addTo(map_b4247bf5c1ccde4f3a6c65ae5dc4b297);
+                {"bubblingMouseEvents": true, "color": "#3388ff", "dashArray": null, "dashOffset": null, "fill": true, "fillColor": "#3388ff", "fillOpacity": 0.08, "fillRule": "evenodd", "lineCap": "round", "lineJoin": "round", "opacity": 1.0, "radius": 35000.0, "stroke": true, "weight": 2}
+            ).addTo(map_6a462eb974a83fdece38c4b7b1c45470);
         
     
-        var popup_1db92a2511b29158bb6e2742c32b27f8 = L.popup({
+        var popup_9fe2d6917b084d4ff69f5c4752afd09e = L.popup({
   "maxWidth": "100%",
 });
 
         
             
-                var html_a6f307866b66a1a899da96e7a3ab5374 = $(`<div id="html_a6f307866b66a1a899da96e7a3ab5374" style="width: 100.0%; height: 100.0%;">Raggio di ricerca: 35.0 km</div>`)[0];
-                popup_1db92a2511b29158bb6e2742c32b27f8.setContent(html_a6f307866b66a1a899da96e7a3ab5374);
+                var html_179f67473e66dc2a421916afe63e668c = $(`<div id="html_179f67473e66dc2a421916afe63e668c" style="width: 100.0%; height: 100.0%;">Raggio di ricerca: 35.0 km</div>`)[0];
+                popup_9fe2d6917b084d4ff69f5c4752afd09e.setContent(html_179f67473e66dc2a421916afe63e668c);
             
         
 
-        circle_84b350a6a0b21c4f8ac8f525ec905ba7.bindPopup(popup_1db92a2511b29158bb6e2742c32b27f8)
+        circle_d5d3725026affb0226c2fc1816fe6fb3.bindPopup(popup_9fe2d6917b084d4ff69f5c4752afd09e)
         ;
 
         
     
     
-            var marker_17088cc03a0ab0876177f08e6c503953 = L.marker(
+            var marker_ecb19e1808b6271d1de62df08b7009ce = L.marker(
                 [41.9028, 12.4964],
                 {
 }
-            ).addTo(map_b4247bf5c1ccde4f3a6c65ae5dc4b297);
+            ).addTo(map_6a462eb974a83fdece38c4b7b1c45470);
         
     
-            var icon_bc63454c514094ee522d89c769c38da6 = L.AwesomeMarkers.icon(
+            var icon_226a38eaa5219aac5048e271a1f12827 = L.AwesomeMarkers.icon(
                 {
   "markerColor": "red",
   "iconColor": "white",
@@ -139,24 +139,24 @@
             );
         
     
-        var popup_41ad9e0611174362e29b466c40605eda = L.popup({
+        var popup_0b20ef37f9fbaf73f640c3dfe52d5e56 = L.popup({
   "maxWidth": "100%",
 });
 
         
             
-                var html_c4595ce8d790332a1a54a375a7afb709 = $(`<div id="html_c4595ce8d790332a1a54a375a7afb709" style="width: 100.0%; height: 100.0%;">Centro di riferimento</div>`)[0];
-                popup_41ad9e0611174362e29b466c40605eda.setContent(html_c4595ce8d790332a1a54a375a7afb709);
+                var html_36aa2c52d3db435a56543bb85ddf6530 = $(`<div id="html_36aa2c52d3db435a56543bb85ddf6530" style="width: 100.0%; height: 100.0%;">Centro di riferimento (Roma)</div>`)[0];
+                popup_0b20ef37f9fbaf73f640c3dfe52d5e56.setContent(html_36aa2c52d3db435a56543bb85ddf6530);
             
         
 
-        marker_17088cc03a0ab0876177f08e6c503953.bindPopup(popup_41ad9e0611174362e29b466c40605eda)
+        marker_ecb19e1808b6271d1de62df08b7009ce.bindPopup(popup_0b20ef37f9fbaf73f640c3dfe52d5e56)
         ;
 
         
     
     
-                marker_17088cc03a0ab0876177f08e6c503953.setIcon(icon_bc63454c514094ee522d89c769c38da6);
+                marker_ecb19e1808b6271d1de62df08b7009ce.setIcon(icon_226a38eaa5219aac5048e271a1f12827);
             
 </script>
 </html>
