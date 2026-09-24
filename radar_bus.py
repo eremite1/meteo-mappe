@@ -4,7 +4,7 @@ import requests
 import folium
 
 # CONFIGURAZIONE (Modifica coordinate e raggio in km)
-CENTRO_LAT = 41.9028  # Latitudine del centro
+CENTRO_LAT = 41.9028  # Latitudine del centro (es. Roma)
 CENTRO_LON = 12.4964  # Longitudine del centro
 RAGGIO_KM = 5.0  # Raggio di ricerca bus in km
 
@@ -57,12 +57,11 @@ def main():
       for entity in feed.entity:
         if entity.HasField("vehicle"):
           veh = entity.vehicle
-          if veh.position.HasField("latitude") and veh.position.HasField(
-              "longitude"
-          ):
-            lat = veh.position.latitude
-            lon = veh.position.longitude
+          lat = veh.position.latitude
+          lon = veh.position.longitude
 
+          # Verifica che le coordinate siano valide (intorno a Roma)
+          if 41.0 < lat < 42.5 and 11.5 < lon < 13.5:
             route_id = (
                 veh.trip.route_id if veh.HasField("trip") else "Sconosciuta"
             )
@@ -82,7 +81,10 @@ def main():
                   icon=folium.Icon(color="green", icon="bus", prefix="fa"),
               ).add_to(mappa)
 
-      print(f"Trovati e mappati {bus_trovati} autobus nel raggio.")
+      print(
+          f"Trovati e mappati {bus_trovati} autobus nel raggio di"
+          f" {RAGGIO_KM} km."
+      )
     else:
       print(f"Errore download ATAC: {response.status_code}")
   except Exception as e:
