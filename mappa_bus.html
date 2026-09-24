@@ -17,7 +17,7 @@
             <meta name="viewport" content="width=device-width,
                 initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
             <style>
-                #map_d307580d2b4402881cb78bb7513bc83e {
+                #map_9ed1d89c79f0e6d6d30cbb3143db4fb1 {
                     position: relative;
                     width: 100.0%;
                     height: 100.0%;
@@ -54,16 +54,16 @@
 <body>
     
     
-            <div class="folium-map" id="map_d307580d2b4402881cb78bb7513bc83e" ></div>
+            <div class="folium-map" id="map_9ed1d89c79f0e6d6d30cbb3143db4fb1" ></div>
         
 </body>
 <script>
     
     
-            var map_d307580d2b4402881cb78bb7513bc83e = L.map(
-                "map_d307580d2b4402881cb78bb7513bc83e",
+            var map_9ed1d89c79f0e6d6d30cbb3143db4fb1 = L.map(
+                "map_9ed1d89c79f0e6d6d30cbb3143db4fb1",
                 {
-                    center: [41.8902, 12.4922],
+                    center: [42.1294, 12.7231],
                     crs: L.CRS.EPSG3857,
                     ...{
   "zoom": 11,
@@ -78,7 +78,7 @@
 
         
     
-            var tile_layer_87b46c8b51e60e7c9e34ad80111f2ab7 = L.tileLayer(
+            var tile_layer_17f4f15c1b11e6accee81410d18bc069 = L.tileLayer(
                 "https://tile.openstreetmap.org/{z}/{x}/{y}.png",
                 {
   "minZoom": 0,
@@ -95,7 +95,68 @@
             );
         
     
-            tile_layer_87b46c8b51e60e7c9e34ad80111f2ab7.addTo(map_d307580d2b4402881cb78bb7513bc83e);
+            tile_layer_17f4f15c1b11e6accee81410d18bc069.addTo(map_9ed1d89c79f0e6d6d30cbb3143db4fb1);
         
+    
+            var circle_c3ad5488366d113d74af728376dd6bfd = L.circle(
+                [42.1294, 12.7231],
+                {"bubblingMouseEvents": true, "color": "blue", "dashArray": null, "dashOffset": null, "fill": true, "fillColor": "blue", "fillOpacity": 0.08, "fillRule": "evenodd", "lineCap": "round", "lineJoin": "round", "opacity": 1.0, "radius": 30000.0, "stroke": true, "weight": 3}
+            ).addTo(map_9ed1d89c79f0e6d6d30cbb3143db4fb1);
+        
+    
+        var popup_9a00a683ad6ca0cd5d3b4c6c9e855f99 = L.popup({
+  "maxWidth": "100%",
+});
+
+        
+            
+                var html_db32ea7b2795a5ea4bb2db4e3a6b3fc7 = $(`<div id="html_db32ea7b2795a5ea4bb2db4e3a6b3fc7" style="width: 100.0%; height: 100.0%;">Raggio di ricerca: 30.0 km</div>`)[0];
+                popup_9a00a683ad6ca0cd5d3b4c6c9e855f99.setContent(html_db32ea7b2795a5ea4bb2db4e3a6b3fc7);
+            
+        
+
+        circle_c3ad5488366d113d74af728376dd6bfd.bindPopup(popup_9a00a683ad6ca0cd5d3b4c6c9e855f99)
+        ;
+
+        
+    
+    
+            var marker_9e1cf5f40d04ea0e8cc3cf986ae91e99 = L.marker(
+                [42.1294, 12.7231],
+                {
+}
+            ).addTo(map_9ed1d89c79f0e6d6d30cbb3143db4fb1);
+        
+    
+            var icon_b827aa7919dceb6a9f292db35c65941e = L.AwesomeMarkers.icon(
+                {
+  "markerColor": "red",
+  "iconColor": "white",
+  "icon": "home",
+  "prefix": "fa",
+  "extraClasses": "fa-rotate-0",
+}
+            );
+        
+    
+        var popup_eaddba5453ffc99930559e08cc2d0f9e = L.popup({
+  "maxWidth": "100%",
+});
+
+        
+            
+                var html_110c6d44a88a3e06bf054f028c008523 = $(`<div id="html_110c6d44a88a3e06bf054f028c008523" style="width: 100.0%; height: 100.0%;">Centro di riferimento (Nerola)</div>`)[0];
+                popup_eaddba5453ffc99930559e08cc2d0f9e.setContent(html_110c6d44a88a3e06bf054f028c008523);
+            
+        
+
+        marker_9e1cf5f40d04ea0e8cc3cf986ae91e99.bindPopup(popup_eaddba5453ffc99930559e08cc2d0f9e)
+        ;
+
+        
+    
+    
+                marker_9e1cf5f40d04ea0e8cc3cf986ae91e99.setIcon(icon_b827aa7919dceb6a9f292db35c65941e);
+            
 </script>
 </html>
