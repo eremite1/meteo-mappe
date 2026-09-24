@@ -1,92 +1,101 @@
 <!DOCTYPE html>
-<html lang="it">
+<html>
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>ATAC Live Radar - Roma</title>
-    <!-- Leaflet CSS -->
-    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-    <style>
-        body, html { margin: 0; padding: 0; height: 100%; width: 100%; background: #0b0f19; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
-        #map { height: 100vh; width: 100vw; background: #0b0f19; }
+    
+    <meta http-equiv="content-type" content="text/html; charset=UTF-8" />
+    <script src="https://cdn.jsdelivr.net/npm/leaflet@1.9.3/dist/leaflet.js"></script>
+    <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.2.2/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/Leaflet.awesome-markers/2.0.2/leaflet.awesome-markers.js"></script>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/leaflet@1.9.3/dist/leaflet.css"/>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.2.2/dist/css/bootstrap.min.css"/>
+    <link rel="stylesheet" href="https://netdna.bootstrapcdn.com/bootstrap/3.0.0/css/bootstrap-glyphicons.css"/>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@6.2.0/css/all.min.css"/>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/Leaflet.awesome-markers/2.0.2/leaflet.awesome-markers.css"/>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/python-visualization/folium/folium/templates/leaflet.awesome.rotate.min.css"/>
+    
+            <meta name="viewport" content="width=device-width,
+                initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+            <style>
+                #map_aecdf0ef0bd32c9ec3ceaed5c94be6e0 {
+                    position: relative;
+                    width: 100.0%;
+                    height: 100.0%;
+                    left: 0.0%;
+                    top: 0.0%;
+                }
+                .leaflet-container { font-size: 1rem; }
+            </style>
+
+            <style>html, body {
+                width: 100%;
+                height: 100%;
+                margin: 0;
+                padding: 0;
+            }
+            </style>
+
+            <style>#map {
+                position:absolute;
+                top:0;
+                bottom:0;
+                right:0;
+                left:0;
+                }
+            </style>
+
+            <script>
+                L_NO_TOUCH = false;
+                L_DISABLE_3D = false;
+            </script>
+
         
-        /* Stile futuristico per i badge delle linee sugli autobus */
-        .bus-badge {
-            background: #00ffcc;
-            color: #0b0f19;
-            font-weight: bold;
-            font-size: 11px;
-            padding: 3px 6px;
-            border-radius: 4px;
-            border: 2px solid #ffffff;
-            box-shadow: 0 0 10px #00ffcc;
-            white-space: nowrap;
-            text-align: center;
-        }
-        
-        /* Pannello di controllo in alto a sinistra */
-        #panel {
-            position: absolute;
-            top: 15px;
-            left: 15px;
-            z-index: 1000;
-            background: rgba(11, 15, 25, 0.85);
-            color: #fff;
-            padding: 12px 18px;
-            border-radius: 8px;
-            border: 1px solid #00ffcc;
-            box-shadow: 0 0 15px rgba(0, 255, 204, 0.3);
-            backdrop-filter: blur(5px);
-        }
-        #panel h2 { margin: 0 0 5px 0; font-size: 16px; color: #00ffcc; letter-spacing: 1px; }
-        #panel p { margin: 0; font-size: 12px; color: #a0aec0; }
-    </style>
 </head>
 <body>
-
-    <div id="panel">
-        <h2>ATAC LIVE RADAR</h2>
-        <p id="status">Connessione ai satelliti in corso...</p>
-    </div>
-
-    <div id="map"></div>
-
-    <!-- Leaflet JS -->
-    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-    <script>
-        // Centrato su Roma con zoom largo per coprire tutto (anche fuori GRA)
-        const map = L.map('map', { zoomControl: false }).setView([41.8902, 12.4922], 11);
-
-        // Mappa in stile scuro / tecnologico (CartoDB Dark Matter)
-        L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
-            maxZoom: 19,
-            attribution: '&copy; OpenStreetMap &copy; CARTO'
-        }).addTo(map);
-
-        L.control.zoom({ position: 'bottomright' }).addTo(map);
-
-        let busMarkers = {};
-
-        async function aggiornaBus() {
-            try {
-                document.getElementById('status').innerText = 'Aggiornamento posizioni...';
-                
-                // Nota: poiché il browser blocca le chiamate dirette HTTP verso alcuni feed protobuf esterni senza CORS, 
-                // usiamo un endpoint proxy pubblico o la lettura diretta se disponibile. 
-                // In alternativa, richiamiamo il JSON elaborato o simuliamo il flusso live.
-                
-                // Simulazione di aggiornamento dinamico fluido dei marker esistenti
-                // (Se preferisci il fetch diretto del .pb, lo colleghiamo tramite un mini worker Python)
-                
-                document.getElementById('status').innerText = 'Live - Bus attivi sulla rete';
-            } catch (e) {
-                document.getElementById('status').innerText = 'Errore di connessione al flusso';
-            }
-        }
-
-        // Aggiorna ogni 10 secondi per dare l'effetto "movimento live"
-        setInterval(aggiornaBus, 10000);
-        aggiornaBus();
-    </script>
+    
+    
+            <div class="folium-map" id="map_aecdf0ef0bd32c9ec3ceaed5c94be6e0" ></div>
+        
 </body>
+<script>
+    
+    
+            var map_aecdf0ef0bd32c9ec3ceaed5c94be6e0 = L.map(
+                "map_aecdf0ef0bd32c9ec3ceaed5c94be6e0",
+                {
+                    center: [41.8902, 12.4922],
+                    crs: L.CRS.EPSG3857,
+                    ...{
+  "zoom": 11,
+  "zoomControl": true,
+  "preferCanvas": false,
+}
+
+                }
+            );
+
+            
+
+        
+    
+            var tile_layer_b3933df6b1203cbec21671f875d56ae4 = L.tileLayer(
+                "https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png",
+                {
+  "minZoom": 0,
+  "maxZoom": 20,
+  "maxNativeZoom": 20,
+  "noWrap": false,
+  "attribution": "\u0026copy; \u003ca href=\"https://www.openstreetmap.org/copyright\"\u003eOpenStreetMap\u003c/a\u003e contributors \u0026copy; \u003ca href=\"https://carto.com/attributions\"\u003eCARTO\u003c/a\u003e",
+  "subdomains": "abcd",
+  "detectRetina": false,
+  "tms": false,
+  "opacity": 1,
+}
+
+            );
+        
+    
+            tile_layer_b3933df6b1203cbec21671f875d56ae4.addTo(map_aecdf0ef0bd32c9ec3ceaed5c94be6e0);
+        
+</script>
 </html>
