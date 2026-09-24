@@ -3,10 +3,10 @@ from google.transit import gtfs_realtime_pb2
 import requests
 import folium
 
-# CONFIGURAZIONE: Centro di Roma con raggio ampio (30 km per prendere tutto, anche fuori GRA)
-CENTRO_LAT = 41.8902
-CENTRO_LON = 12.4922
-RAGGIO_KM = 30.0  # Copre interamente Roma e dintorni
+# CONFIGURAZIONE: Centrato a Nerola con un raggio di 30 km (copre Roma e provincia)
+CENTRO_LAT = 42.1294
+CENTRO_LON = 12.7231
+RAGGIO_KM = 30.0
 
 URL_ATAC = (
     "https://romamobilita.it/sites/default/files/rome_gtfs_rt_vehicle_positions.pb"
@@ -28,27 +28,43 @@ def calcola_distanza(lat1, lon1, lat2, lon2):
 
 
 def main():
-  # Creazione mappa con sfondo OpenStreetMap standard (libero e senza chiavi API richieste)
+  # Mappa centrata su Nerola con zoom ottimizzato per vedere l'area
   mappa = folium.Map(
-      location=[CENTRO_LAT, CENTRO_LON],
-      zoom_start=11,
-      tiles="OpenStreetMap",
+      location=[CENTRO_LAT, CENTRO_LON], zoom_start=11, tiles="OpenStreetMap"
   )
 
+  # Cerchio blu che delimita l'area di interesse
+  folium.Circle(
+      location=[CENTRO_LAT, CENTRO_LON],
+      radius=RAGGIO_KM * 1000,
+      color="blue",
+      fill=True,
+      fill_opacity=0.08,
+      popup=f"Raggio di ricerca: {RAGGIO_KM} km",
+  ).add_to(mappa)
+
+  # Marker rosso per il punto centrale (Nerola)
+  folium.Marker(
+      [CENTRO_LAT, CENTRO_LON],
+      popup="Centro di riferimento (Nerola)",
+      icon=folium.Icon(color="red", icon="home", prefix="fa"),
+  ).add_to(mappa)
+
+  bus_trovati = 0
   try:
     response = requests.get(URL_ATAC, timeout=15)
-    if response.status_code == 200:
+    print(f"HTTP Status: {response.status_code}, Bytes: {len(response.content)}")
+
+    if response.status_code == 200 and len(response.content) > 100:
       feed = gtfs_realtime_pb2.FeedMessage()
       feed.ParseFromString(response.content)
 
-      count = 0
       for entity in feed.entity:
         if entity.HasField("vehicle"):
           veh = entity.vehicle
           lat = veh.position.latitude
           lon = veh.position.longitude
 
-          # Estrae numero linea e direzione (capolinea se disponibile)
           route_id = veh.trip.route_id if veh.HasField("trip") else "N/D"
           headsign = (
               veh.trip.trip_headsign if veh.HasField("trip") else "Non disponibile"
@@ -57,11 +73,10 @@ def main():
 
           dist = calcola_distanza(CENTRO_LAT, CENTRO_LON, lat, lon)
 
-          # Filtriamo nel raggio esteso di Roma
           if dist <= RAGGIO_KM:
-            count += 1
+            bus_trovati += 1
 
-            # HTML personalizzato per mettere il numero della linea direttamente sul marker
+            # Badge visibile con il numero della linea sul bus
             html_icon = f"""
                         <div style="
                             background: #00ffcc; 
@@ -77,7 +92,6 @@ def main():
                             🚌 {route_id}
                         </div>
                         """
-
             icona_custom = folium.DivIcon(
                 html=html_icon, class_name="bus-tag", icon_size=(40, 20)
             )
@@ -85,9 +99,9 @@ def main():
             popup_text = f"""
                         <div style="font-family: Arial; font-size: 12px;">
                             <b>Linea:</b> {route_id}<br>
-                            <b>Direzione / Capolinea:</b> {headsign}<br>
+                            <b>Direzione:</b> {headsign}<br>
                             <b>ID Mezzo:</b> {veh_id}<br>
-                            <b>Distanza dal centro:</b> {dist:.2f} km
+                            <b>Distanza:</b> {dist:.2f} km
                         </div>
                         """
 
@@ -97,15 +111,12 @@ def main():
                 icon=icona_custom,
             ).add_to(mappa)
 
-      print(
-          f"Trovati e mappati {count} autobus nel territorio di Roma e dintorni."
-      )
+      print(f"Trovati e mappati {bus_trovati} autobus nel raggio.")
   except Exception as e:
     print(f"Errore nel recupero dati: {e}")
 
-  # Salva direttamente come mappa_bus.html
   mappa.save("mappa_bus.html")
-  print("Mappa aggiornata con successo!")
+  print("Mappa salvata con successo.")
 
 
 if __name__ == "__main__":
