@@ -3,10 +3,10 @@ from google.transit import gtfs_realtime_pb2
 import requests
 import folium
 
-# CONFIGURAZIONE: Centrato a Nerola con un raggio di 30 km (copre Roma e provincia)
-CENTRO_LAT = 42.1294
-CENTRO_LON = 12.7231
-RAGGIO_KM = 30.0
+# CONFIGURAZIONE: Riportato al centro di Roma con un raggio ampio di 35 km
+CENTRO_LAT = 41.9028
+CENTRO_LON = 12.4964
+RAGGIO_KM = 35.0
 
 URL_ATAC = (
     "https://romamobilita.it/sites/default/files/rome_gtfs_rt_vehicle_positions.pb"
@@ -28,34 +28,32 @@ def calcola_distanza(lat1, lon1, lat2, lon2):
 
 
 def main():
-  # Mappa centrata su Nerola con zoom ottimizzato per vedere l'area
+  # Mappa pulita con OpenStreetMap
   mappa = folium.Map(
-      location=[CENTRO_LAT, CENTRO_LON], zoom_start=11, tiles="OpenStreetMap"
+      location=[CENTRO_LAT, CENTRO_LON], zoom_start=12, tiles="OpenStreetMap"
   )
 
-  # Cerchio blu che delimita l'area di interesse
+  # Cerchio blu del raggio
   folium.Circle(
       location=[CENTRO_LAT, CENTRO_LON],
       radius=RAGGIO_KM * 1000,
       color="blue",
       fill=True,
-      fill_opacity=0.08,
+      fill_opacity=0.05,
       popup=f"Raggio di ricerca: {RAGGIO_KM} km",
   ).add_to(mappa)
 
-  # Marker rosso per il punto centrale (Nerola)
+  # Punto centrale Roma
   folium.Marker(
       [CENTRO_LAT, CENTRO_LON],
-      popup="Centro di riferimento (Nerola)",
+      popup="Centro di riferimento",
       icon=folium.Icon(color="red", icon="home", prefix="fa"),
   ).add_to(mappa)
 
   bus_trovati = 0
   try:
     response = requests.get(URL_ATAC, timeout=15)
-    print(f"HTTP Status: {response.status_code}, Bytes: {len(response.content)}")
-
-    if response.status_code == 200 and len(response.content) > 100:
+    if response.status_code == 200:
       feed = gtfs_realtime_pb2.FeedMessage()
       feed.ParseFromString(response.content)
 
@@ -76,7 +74,6 @@ def main():
           if dist <= RAGGIO_KM:
             bus_trovati += 1
 
-            # Badge visibile con il numero della linea sul bus
             html_icon = f"""
                         <div style="
                             background: #00ffcc; 
@@ -111,12 +108,12 @@ def main():
                 icon=icona_custom,
             ).add_to(mappa)
 
-      print(f"Trovati e mappati {bus_trovati} autobus nel raggio.")
+      print(f"Trovati e mappati {bus_trovati} autobus.")
   except Exception as e:
-    print(f"Errore nel recupero dati: {e}")
+    print(f"Errore: {e}")
 
   mappa.save("mappa_bus.html")
-  print("Mappa salvata con successo.")
+  print("Mappa salvata.")
 
 
 if __name__ == "__main__":
