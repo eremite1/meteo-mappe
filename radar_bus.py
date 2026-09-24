@@ -1,11 +1,12 @@
 import math
 import requests
 import folium
+from google.transit import gtfs_realtime_pb2
 
 # CONFIGURAZIONE (Puoi modificare coordinate e raggio in km)
-CENTRO_LAT = 41.9028  # Latitudine del centro mappa
-CENTRO_LON = 12.4964  # Longitudine del centro mappa
-RAGGIO_KM = 3.0  # Raggio di ricerca bus
+CENTRO_LAT = 41.9028  # Latitudine del centro (es. Roma / Nerola)
+CENTRO_LON = 12.4964  # Longitudine del centro
+RAGGIO_KM = 5.0  # Raggio di ricerca bus in km
 
 URL_ATAC = (
     "https://romamobilita.it/sites/default/files/rome_gtfs_rt_vehicle_positions.pb"
@@ -27,42 +28,79 @@ def calcola_distanza(lat1, lon1, lat2, lon2):
 
 
 def main():
+  # Creazione mappa centrata
   mappa = folium.Map(location=[CENTRO_LAT, CENTRO_LON], zoom_start=13)
 
+  # Cerchio del raggio di ricerca
   folium.Circle(
       location=[CENTRO_LAT, CENTRO_LON],
       radius=RAGGIO_KM * 1000,
       color="blue",
       fill=True,
-      fill_opacity=0.1,
-      popup=f"Raggio {RAGGIO_KM} km",
+      fill_opacity=0.08,
+      popup=f"Raggio di ricerca: {RAGGIO_KM} km",
   ).add_to(mappa)
 
+  # Marker del punto di riferimento centrale
   folium.Marker(
       [CENTRO_LAT, CENTRO_LON],
       popup="Punto di riferimento",
-      icon=folium.Icon(color="red", icon="home"),
+      icon=folium.Icon(color="red", icon="home", prefix="fa"),
   ).add_to(mappa)
 
   try:
+    print("Scaricamento dati in tempo reale da ATAC...")
     response = requests.get(URL_ATAC, timeout=15)
+
     if response.status_code == 200:
-      # Salviamo temporaneamente il file binario grezzo per leggerlo in sicurezza
-      with open("rome_gtfs_rt.pb", "wb") as f:
-        f.write(response.content)
+      feed = gtfs_realtime_pb2.FeedMessage()
+      feed.ParseFromString(response.content)
+
+      bus_trovati = 0
+      for entity in feed.entity:
+        if entity.HasField("vehicle"):
+          veh = entity.vehicle
+          if veh.position.HasField("latitude") and veh.position.HasField(
+              "longitude"
+          ):
+            lat = veh.position.latitude
+            lon = veh.position.longitude
+
+            # Recupero informazioni sulla linea e sul mezzo se disponibili
+            route_id = (
+                veh.trip.route_id if veh.HasField("trip") else "Sconosciuta"
+            )
+            veh_id = (
+                veh.vehicle.id if veh.HasField("vehicle") else "ID Sconosciuto"
+            )
+
+            # Calcola la distanza dal centro
+            distanza = calcola_distanza(CENTRO_LAT, CENTRO_LON, lat, lon)
+
+            if distanza <= RAGGIO_KM:
+              bus_trovati += 1
+              popup_text = f"<b>Linea:</b> {route_id}<br><b>Mezzo ID:</b> {veh_id}<br><b>Distanza:</b> {distanza:.2f} km"
+
+              # Aggiunge il marker verde del bus sulla mappa
+              folium.Marker(
+                  [lat, lon],
+                  popup=popup_text,
+                  icon=folium.Icon(color="green", icon="bus", prefix="fa"),
+              ).add_to(mappa)
 
       print(
-          "Feed ATAC scaricato correttamente. (Mappa generata con i punti di"
-          " riferimento)."
+          f"Trovati e mappati {bus_trovati} autobus nel raggio di"
+          f" {RAGGIO_KM} km."
       )
     else:
-      print(f"Errore download ATAC: {response.status_code}")
-  except Exception as e:
-    print(f"Errore di connessione: {e}")
+      print(f"Errore nel download dei dati ATAC: {response.status_code}")
 
-  # Salva la mappa aggiornata
+  except Exception as e:
+    print(f"Errore durante l'elaborazione: {e}")
+
+  # Salva la mappa finale
   mappa.save("mappa_bus.html")
-  print("Mappa bus salvata con successo!")
+  print("File mappa_bus.html generato con successo!")
 
 
 if __name__ == "__main__":
