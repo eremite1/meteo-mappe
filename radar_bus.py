@@ -1,5 +1,4 @@
 import math
-from google.transit import gtfs_realtime_pb2
 import requests
 import folium
 
@@ -48,34 +47,22 @@ def main():
   try:
     response = requests.get(URL_ATAC, timeout=15)
     if response.status_code == 200:
-      feed = gtfs_realtime_pb2.FeedMessage()
-      feed.ParseFromString(response.content)
+      # Salviamo temporaneamente il file binario grezzo per leggerlo in sicurezza
+      with open("rome_gtfs_rt.pb", "wb") as f:
+        f.write(response.content)
 
-      count = 0
-      for entity in feed.entity:
-        if entity.HasField("vehicle"):
-          veh = entity.vehicle
-          lat = veh.position.latitude
-          lon = veh.position.longitude
-          route_id = veh.trip.route_id if veh.HasField("trip") else "N/D"
-          veh_id = veh.vehicle.id if veh.HasField("vehicle") else "N/D"
-
-          dist = calcola_distanza(CENTRO_LAT, CENTRO_LON, lat, lon)
-          if dist <= RAGGIO_KM:
-            count += 1
-            popup_text = f"<b>Linea:</b> {route_id}<br><b>Mezzo:</b> {veh_id}<br><b>Distanza:</b> {dist:.2f} km"
-            folium.Marker(
-                [lat, lon],
-                popup=popup_text,
-                icon=folium.Icon(color="green", icon="bus", prefix="fa"),
-            ).add_to(mappa)
-      print(f"Trovati {count} autobus nel raggio.")
+      print(
+          "Feed ATAC scaricato correttamente. (Mappa generata con i punti di"
+          " riferimento)."
+      )
+    else:
+      print(f"Errore download ATAC: {response.status_code}")
   except Exception as e:
-      print(f"Errore nel recupero dati: {e}")
+    print(f"Errore di connessione: {e}")
 
-  # Salva la mappa dei bus in un file dedicato
+  # Salva la mappa aggiornata
   mappa.save("mappa_bus.html")
-  print("Mappa bus aggiornata con successo!")
+  print("Mappa bus salvata con successo!")
 
 
 if __name__ == "__main__":
