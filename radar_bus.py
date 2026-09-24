@@ -3,7 +3,7 @@ from google.transit import gtfs_realtime_pb2
 import requests
 import folium
 
-# CONFIGURAZIONE: Riportato al centro di Roma con un raggio ampio di 35 km
+# CONFIGURAZIONE: Centro di Roma, raggio ampio di 35 km
 CENTRO_LAT = 41.9028
 CENTRO_LON = 12.4964
 RAGGIO_KM = 35.0
@@ -28,31 +28,36 @@ def calcola_distanza(lat1, lon1, lat2, lon2):
 
 
 def main():
-  # Mappa pulita con OpenStreetMap
+  # Creazione mappa
   mappa = folium.Map(
-      location=[CENTRO_LAT, CENTRO_LON], zoom_start=12, tiles="OpenStreetMap"
+      location=[CENTRO_LAT, CENTRO_LON], zoom_start=11, tiles="OpenStreetMap"
   )
 
-  # Cerchio blu del raggio
-  folium.Circle(
+  # Aggiungiamo esplicitamente il cerchio blu dell'area di ricerca
+  cerchio = folium.Circle(
       location=[CENTRO_LAT, CENTRO_LON],
       radius=RAGGIO_KM * 1000,
-      color="blue",
+      color="#3388ff",
+      weight=2,
       fill=True,
-      fill_opacity=0.05,
+      fill_color="#3388ff",
+      fill_opacity=0.08,
       popup=f"Raggio di ricerca: {RAGGIO_KM} km",
-  ).add_to(mappa)
+  )
+  cerchio.add_to(mappa)
 
-  # Punto centrale Roma
+  # Marker centrale rosso
   folium.Marker(
       [CENTRO_LAT, CENTRO_LON],
-      popup="Centro di riferimento",
+      popup="Centro di riferimento (Roma)",
       icon=folium.Icon(color="red", icon="home", prefix="fa"),
   ).add_to(mappa)
 
   bus_trovati = 0
   try:
     response = requests.get(URL_ATAC, timeout=15)
+    print(f"HTTP Status ATAC: {response.status_code}")
+
     if response.status_code == 200:
       feed = gtfs_realtime_pb2.FeedMessage()
       feed.ParseFromString(response.content)
@@ -80,10 +85,10 @@ def main():
                             color: #0b0f19; 
                             font-weight: bold; 
                             font-size: 11px; 
-                            padding: 2px 5px; 
+                            padding: 2px 6px; 
                             border-radius: 4px; 
                             border: 2px solid #000000;
-                            box-shadow: 0 0 5px rgba(0,0,0,0.3);
+                            box-shadow: 0 0 5px rgba(0,0,0,0.4);
                             text-align: center;
                             white-space: nowrap;">
                             🚌 {route_id}
@@ -108,12 +113,13 @@ def main():
                 icon=icona_custom,
             ).add_to(mappa)
 
-      print(f"Trovati e mappati {bus_trovati} autobus.")
+      print(f"Trovati e mappati {bus_trovati} autobus nel raggio.")
   except Exception as e:
-    print(f"Errore: {e}")
+    print(f"Errore durante l'elaborazione: {e}")
 
+  # Salvataggio finale
   mappa.save("mappa_bus.html")
-  print("Mappa salvata.")
+  print("File mappa_bus.html salvato correttamente.")
 
 
 if __name__ == "__main__":
