@@ -1,10 +1,10 @@
 import math
+from google.transit import gtfs_realtime_pb2
 import requests
 import folium
-from google.transit import gtfs_realtime_pb2
 
-# CONFIGURAZIONE (Puoi modificare coordinate e raggio in km)
-CENTRO_LAT = 41.9028  # Latitudine del centro (es. Roma / Nerola)
+# CONFIGURAZIONE (Modifica coordinate e raggio in km)
+CENTRO_LAT = 41.9028  # Latitudine del centro
 CENTRO_LON = 12.4964  # Longitudine del centro
 RAGGIO_KM = 5.0  # Raggio di ricerca bus in km
 
@@ -28,10 +28,8 @@ def calcola_distanza(lat1, lon1, lat2, lon2):
 
 
 def main():
-  # Creazione mappa centrata
   mappa = folium.Map(location=[CENTRO_LAT, CENTRO_LON], zoom_start=13)
 
-  # Cerchio del raggio di ricerca
   folium.Circle(
       location=[CENTRO_LAT, CENTRO_LON],
       radius=RAGGIO_KM * 1000,
@@ -41,7 +39,6 @@ def main():
       popup=f"Raggio di ricerca: {RAGGIO_KM} km",
   ).add_to(mappa)
 
-  # Marker del punto di riferimento centrale
   folium.Marker(
       [CENTRO_LAT, CENTRO_LON],
       popup="Punto di riferimento",
@@ -66,7 +63,6 @@ def main():
             lat = veh.position.latitude
             lon = veh.position.longitude
 
-            # Recupero informazioni sulla linea e sul mezzo se disponibili
             route_id = (
                 veh.trip.route_id if veh.HasField("trip") else "Sconosciuta"
             )
@@ -74,33 +70,26 @@ def main():
                 veh.vehicle.id if veh.HasField("vehicle") else "ID Sconosciuto"
             )
 
-            # Calcola la distanza dal centro
             distanza = calcola_distanza(CENTRO_LAT, CENTRO_LON, lat, lon)
 
             if distanza <= RAGGIO_KM:
               bus_trovati += 1
               popup_text = f"<b>Linea:</b> {route_id}<br><b>Mezzo ID:</b> {veh_id}<br><b>Distanza:</b> {distanza:.2f} km"
 
-              # Aggiunge il marker verde del bus sulla mappa
               folium.Marker(
                   [lat, lon],
                   popup=popup_text,
                   icon=folium.Icon(color="green", icon="bus", prefix="fa"),
               ).add_to(mappa)
 
-      print(
-          f"Trovati e mappati {bus_trovati} autobus nel raggio di"
-          f" {RAGGIO_KM} km."
-      )
+      print(f"Trovati e mappati {bus_trovati} autobus nel raggio.")
     else:
-      print(f"Errore nel download dei dati ATAC: {response.status_code}")
-
+      print(f"Errore download ATAC: {response.status_code}")
   except Exception as e:
-    print(f"Errore durante l'elaborazione: {e}")
+    print(f"Errore: {e}")
 
-  # Salva la mappa finale
   mappa.save("mappa_bus.html")
-  print("File mappa_bus.html generato con successo!")
+  print("Mappa generata con successo!")
 
 
 if __name__ == "__main__":
