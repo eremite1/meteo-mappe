@@ -3,7 +3,6 @@ from google.transit import gtfs_realtime_pb2
 import requests
 import folium
 
-# CONFIGURAZIONE: Centro di Roma, raggio ampio di 35 km
 CENTRO_LAT = 41.9028
 CENTRO_LON = 12.4964
 RAGGIO_KM = 35.0
@@ -28,13 +27,12 @@ def calcola_distanza(lat1, lon1, lat2, lon2):
 
 
 def main():
-  # Creazione mappa
   mappa = folium.Map(
       location=[CENTRO_LAT, CENTRO_LON], zoom_start=11, tiles="OpenStreetMap"
   )
 
-  # Aggiungiamo esplicitamente il cerchio blu dell'area di ricerca
-  cerchio = folium.Circle(
+  # Cerchio blu
+  folium.Circle(
       location=[CENTRO_LAT, CENTRO_LON],
       radius=RAGGIO_KM * 1000,
       color="#3388ff",
@@ -42,84 +40,66 @@ def main():
       fill=True,
       fill_color="#3388ff",
       fill_opacity=0.08,
-      popup=f"Raggio di ricerca: {RAGGIO_KM} km",
-  )
-  cerchio.add_to(mappa)
+      popup=f"Raggio: {RAGGIO_KM} km",
+  ).add_to(mappa)
 
-  # Marker centrale rosso
+  # Centro Roma
   folium.Marker(
       [CENTRO_LAT, CENTRO_LON],
-      popup="Centro di riferimento (Roma)",
+      popup="Centro Roma",
       icon=folium.Icon(color="red", icon="home", prefix="fa"),
   ).add_to(mappa)
 
-  bus_trovati = 0
   try:
     response = requests.get(URL_ATAC, timeout=15)
-    print(f"HTTP Status ATAC: {response.status_code}")
+    print(f"Dimensione dati scaricati: {len(response.content)} bytes")
 
     if response.status_code == 200:
       feed = gtfs_realtime_pb2.FeedMessage()
       feed.ParseFromString(response.content)
 
+      totale_veicoli = 0
+      mappati = 0
+
       for entity in feed.entity:
         if entity.HasField("vehicle"):
+          totale_veicoli += 1
           veh = entity.vehicle
           lat = veh.position.latitude
           lon = veh.position.longitude
 
-          route_id = veh.trip.route_id if veh.HasField("trip") else "N/D"
-          headsign = (
-              veh.trip.trip_headsign if veh.HasField("trip") else "Non disponibile"
+          # Estrazione sicura degli ID
+          route_id = (
+              veh.trip.route_id
+              if (veh.HasField("trip") and veh.trip.HasField("route_id"))
+              else "Generico"
           )
-          veh_id = veh.vehicle.id if veh.HasField("vehicle") else "N/D"
+          veh_id = (
+              veh.vehicle.id
+              if (veh.HasField("vehicle") and veh.vehicle.HasField("id"))
+              else "N/D"
+          )
 
           dist = calcola_distanza(CENTRO_LAT, CENTRO_LON, lat, lon)
 
           if dist <= RAGGIO_KM:
-            bus_trovati += 1
-
-            html_icon = f"""
-                        <div style="
-                            background: #00ffcc; 
-                            color: #0b0f19; 
-                            font-weight: bold; 
-                            font-size: 11px; 
-                            padding: 2px 6px; 
-                            border-radius: 4px; 
-                            border: 2px solid #000000;
-                            box-shadow: 0 0 5px rgba(0,0,0,0.4);
-                            text-align: center;
-                            white-space: nowrap;">
-                            🚌 {route_id}
-                        </div>
-                        """
-            icona_custom = folium.DivIcon(
-                html=html_icon, class_name="bus-tag", icon_size=(40, 20)
-            )
-
-            popup_text = f"""
-                        <div style="font-family: Arial; font-size: 12px;">
-                            <b>Linea:</b> {route_id}<br>
-                            <b>Direzione:</b> {headsign}<br>
-                            <b>ID Mezzo:</b> {veh_id}<br>
-                            <b>Distanza:</b> {dist:.2f} km
-                        </div>
-                        """
-
+            mappati += 1
+            # Usiamo un marker classico verde con icona bus per evitare problemi di visualizzazione
             folium.Marker(
                 [lat, lon],
-                popup=folium.Popup(popup_text, max_width=250),
-                icon=icona_custom,
+                popup=f"Linea: {route_id} - Mezzo ID: {veh_id} - Distanza: {dist:.2f} km",
+                icon=folium.Icon(color="green", icon="bus", prefix="fa"),
             ).add_to(mappa)
 
-      print(f"Trovati e mappati {bus_trovati} autobus nel raggio.")
+      print(
+          f"Trovati {totale_veicoli} veicoli totali nel feed, {mappati} nel"
+          " raggio."
+      )
   except Exception as e:
-    print(f"Errore durante l'elaborazione: {e}")
+    print(f"Errore: {e}")
 
-  # Salvataggio finale
   mappa.save("mappa_bus.html")
-  print("File mappa_bus.html salvato correttamente.")
+  print("Mappa salvata.")
 
 
 if __name__ == "__main__":
