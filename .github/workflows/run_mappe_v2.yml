@@ -1,12 +1,21 @@
 name: Mappe ICON-2I Lazio v2
 
+# Ogni modello si aggiorna al suo orario (UTC), per restare nei limiti gratuiti di Open-Meteo.
+# Le mappe vengono pubblicate nel ramo "mappe" del repository, che contiene solo
+# l'ultima versione (niente storico, così il repository non si gonfia).
 on:
   workflow_dispatch:
+    inputs:
+      modelli:
+        description: 'Modelli da elaborare: tutti, oppure ad es. icon2i oppure icon2i,ecmwf'
+        default: 'icon2i'
+        required: true
   schedule:
-    # ICON-2I esce due volte al giorno (corse delle 00 e delle 12 UTC):
-    # aggiorniamo poco dopo che i dati sono disponibili.
-    - cron: '17 5 * * *'
-    - cron: '17 17 * * *'
+    - cron: '47 3 * * *'    # AROME     (corsa delle 00 UTC)
+    - cron: '17 5 * * *'    # ICON-2I   (corsa delle 00 UTC)
+    - cron: '47 8 * * *'    # ECMWF IFS (corsa delle 00 UTC)
+    - cron: '47 10 * * *'   # UKMO      (corsa delle 00 UTC)
+    - cron: '17 17 * * *'   # ICON-2I   (corsa delle 12 UTC)
 
 permissions:
   contents: write
@@ -18,11 +27,24 @@ concurrency:
 jobs:
   build:
     runs-on: ubuntu-latest
-    timeout-minutes: 50
+    timeout-minutes: 150
 
     steps:
     - name: Checkout repository
       uses: actions/checkout@v4
+
+    - name: Scegli i modelli
+      run: |
+        case "${{ github.event.schedule }}" in
+          '47 3 * * *')  M=arome ;;
+          '17 5 * * *')  M=icon2i ;;
+          '47 8 * * *')  M=ecmwf ;;
+          '47 10 * * *') M=ukmo ;;
+          '17 17 * * *') M=icon2i ;;
+          *)             M="${{ github.event.inputs.modelli }}" ;;
+        esac
+        echo "MODELLI=${M:-icon2i}" >> "$GITHUB_ENV"
+        echo "Modelli scelti: ${M:-icon2i}"
 
     - name: Set up Python
       uses: actions/setup-python@v5
@@ -32,16 +54,42 @@ jobs:
     - name: Install dependencies
       run: |
         python -m pip install --upgrade pip
-        pip install requests numpy scipy matplotlib cartopy rasterio
+        pip install requests numpy scipy matplotlib cartopy shapely rasterio
 
     - name: Genera le mappe
-      run: python genera_mappe_v2.py
+      run: python genera_mappe_v2.py "$MODELLI"
 
-    - name: Salva mappe e dati nel repository
+    - name: Salva il file del terreno nel ramo principale (solo se nuovo)
       run: |
         git config --global user.name 'actions-user'
         git config --global user.email 'actions@github.com'
-        git add -A mappe_v2/ dati/
-        git commit -m "Mappe ICON-2I v2 [skip ci]" || exit 0
-        git pull --rebase
-        git push
+        git rm -r -q --ignore-unmatch mappe_v2
+        git add dati/
+        if ! git diff --cached --quiet; then
+          git commit -m "Dati terreno / pulizia [skip ci]"
+          git pull --rebase
+          git push
+        fi
+
+    - name: Pubblica le mappe nel ramo "mappe" (solo ultima versione)
+      env:
+        TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      run: |
+        PUB="$RUNNER_TEMP/pubblica"
+        mkdir -p "$PUB" && cd "$PUB"
+        git init -q -b mappe
+        git remote add origin "https://x-access-token:${TOKEN}@github.com/${{ github.repository }}.git"
+        # recupero le mappe già pubblicate degli altri modelli
+        if git fetch -q --depth 1 origin mappe; then
+          git archive FETCH_HEAD | tar -x
+        fi
+        # sostituisco solo le cartelle dei modelli appena elaborati
+        for d in "$GITHUB_WORKSPACE"/mappe/*/; do
+          m=$(basename "$d")
+          rm -rf "$m"
+          cp -r "$d" "$m"
+        done
+        git add -A
+        git commit -q -m "Mappe aggiornate $(date -u '+%Y-%m-%d %H:%M UTC') [skip ci]"
+        git push -q -f origin mappe
+        echo "Pubblicate: $(ls -d */ | tr '\n' ' ')"
