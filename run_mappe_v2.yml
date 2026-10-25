@@ -1,0 +1,47 @@
+name: Mappe ICON-2I Lazio v2
+
+on:
+  workflow_dispatch:
+  schedule:
+    # ICON-2I esce due volte al giorno (corse delle 00 e delle 12 UTC):
+    # aggiorniamo poco dopo che i dati sono disponibili.
+    - cron: '17 5 * * *'
+    - cron: '17 17 * * *'
+
+permissions:
+  contents: write
+
+concurrency:
+  group: mappe-v2
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 50
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.11'
+
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install requests numpy scipy matplotlib cartopy rasterio
+
+    - name: Genera le mappe
+      run: python genera_mappe_v2.py
+
+    - name: Salva mappe e dati nel repository
+      run: |
+        git config --global user.name 'actions-user'
+        git config --global user.email 'actions@github.com'
+        git add -A mappe_v2/ dati/
+        git commit -m "Mappe ICON-2I v2 [skip ci]" || exit 0
+        git pull --rebase
+        git push
