@@ -619,7 +619,13 @@ def elabora_modello(chiave, dem, mappa):
         if disponibili["cloud_cover"]:
             campi["nuvole"][k] = el.scalare(D["cloud_cover"][k], 0, 100)
         if disponibili["pressure_msl"]:
-            campi["pressione"][k] = el.scalare(D["pressure_msl"][k])
+            # la pressione ridotta al livello del mare è "rumorosa" sui rilievi:
+            # la lisciamo (~8 km) per avere isobare pulite, come nelle carte sinottiche
+            pr = el.scalare(D["pressure_msl"][k])
+            dentro = np.isfinite(pr)
+            pr = gaussian_filter(np.where(dentro, pr, np.nanmean(pr)), 16)
+            pr[~dentro] = np.nan
+            campi["pressione"][k] = pr
         if disponibili["relative_humidity_2m"]:
             campi["umidita"][k] = el.scalare(D["relative_humidity_2m"][k], 0, 100)
         if disponibili["freezing_level_height"]:
