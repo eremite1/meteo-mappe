@@ -209,15 +209,22 @@ class Limitatore:
 LIMITATORE = Limitatore()
 
 
-def scarica_blocco(cfg, punti):
+def avviso(msg):
+    """Messaggio visibile anche nel riepilogo di GitHub (annotazione)."""
+    log(msg)
+    print(f"::warning::{msg}", flush=True)
+
+
+def scarica_blocco(cfg, punti, variabili=None):
+    variabili = variabili or VARIABILI_API
     lat_s = ",".join(f"{p[0]:.4f}" for p in punti)
     lon_s = ",".join(f"{p[1]:.4f}" for p in punti)
     ele_s = ",".join("nan" for _ in punti)
     url = (f"{API}?latitude={lat_s}&longitude={lon_s}&elevation={ele_s}"
-           f"&hourly={','.join(VARIABILI_API)}&models={cfg['api']}"
+           f"&hourly={','.join(variabili)}&models={cfg['api']}"
            f"&forecast_hours={ORE_PREVISIONE}&past_hours=2"
            f"&cell_selection=nearest&timezone=GMT")
-    peso = len(punti) * max(1.0, len(VARIABILI_API) / 10)
+    peso = len(punti) * max(1.0, len(variabili) / 10)
     for tentativo in range(6):
         LIMITATORE.attendi(peso)
         try:
@@ -229,9 +236,10 @@ def scarica_blocco(cfg, punti):
                 log("  Open-Meteo dice: troppe richieste. Attendo 65 secondi...")
                 time.sleep(65)
                 continue
-            log(f"  risposta {r.status_code}: {r.text[:300]}")
             if r.status_code == 400:
+                avviso(f"[{cfg['nome']}] Open-Meteo rifiuta la richiesta: {r.text[:300]}")
                 return None
+            log(f"  risposta {r.status_code}: {r.text[:300]}")
         except Exception as e:
             log(f"  errore di rete: {e}")
         time.sleep(10 * (tentativo + 1))
@@ -245,14 +253,30 @@ def griglia_modello(cfg):
     return lat, lon
 
 
+def verifica_variabili(cfg):
+    """Prova la richiesta su un solo punto; se il modello rifiuta qualche parametro,
+    scopre quali accetta e continua solo con quelli (invece di fermarsi)."""
+    punto = [(41.9, 12.5, 0, 0)]
+    if scarica_blocco(cfg, punto) is not None:
+        return list(VARIABILI_API)
+    ok = [v for v in VARIABILI_API if scarica_blocco(cfg, punto, [v]) is not None]
+    if ok:
+        avviso(f"[{cfg['nome']}] parametri accettati: {', '.join(ok)}")
+    return ok
+
+
 def scarica_modello(cfg):
+    variabili = verifica_variabili(cfg)
+    if not variabili:
+        avviso(f"[{cfg['nome']}] nessun parametro accettato da Open-Meteo per il modello '{cfg['api']}'")
+        return None
     lat, lon = griglia_modello(cfg)
     punti = [(la, lo, i, j) for i, la in enumerate(lat) for j, lo in enumerate(lon)]
     blocchi = [punti[k:k + PUNTI_PER_RICHIESTA] for k in range(0, len(punti), PUNTI_PER_RICHIESTA)]
     log(f"[{cfg['nome']}] scarico {len(punti)} punti in {len(blocchi)} richieste...")
     tempi, dati = None, {}
     for n, blocco in enumerate(blocchi):
-        risp = scarica_blocco(cfg, blocco)
+        risp = scarica_blocco(cfg, blocco, variabili)
         if risp is None:
             log(f"  blocco {n + 1}/{len(blocchi)} perso")
             if n == 0:
@@ -266,7 +290,7 @@ def scarica_modello(cfg):
                         for v in VARIABILI_API}
             if tempi is None:
                 continue
-            for v in VARIABILI_API:
+            for v in variabili:
                 try:
                     arr = np.atleast_1d(np.array(h.get(v) or [], dtype=float))
                 except (TypeError, ValueError):
@@ -575,7 +599,7 @@ def elabora_modello(chiave, dem, mappa):
     inizio = time.time()
     mod = scarica_modello(cfg)
     if mod is None:
-        log(f"[{cfg['nome']}] nessun dato ricevuto: salto questo modello.")
+        avviso(f"[{cfg['nome']}] nessun dato ricevuto: salto questo modello.")
         return False
     D, tempi = mod["dati"], mod["tempi"]
     T = D["temperature_2m"]
