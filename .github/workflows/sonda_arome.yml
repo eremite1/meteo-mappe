@@ -1,0 +1,31 @@
+name: Sonda copertura AROME (temporaneo)
+on: workflow_dispatch
+jobs:
+  sonda:
+    runs-on: ubuntu-latest
+    steps:
+    - name: Prova punti
+      run: |
+        python3 - <<'PY'
+        import json, urllib.request, urllib.error
+        modelli = ["meteofrance_arome_france", "meteofrance_arome_france_hd", "meteofrance_seamless"]
+        lats = [41.0, 41.4, 41.8, 42.0, 42.2, 42.4, 42.8]
+        lons = [11.4, 11.8, 12.2, 12.5, 12.8, 13.2, 13.6, 14.0]
+        for m in modelli:
+            righe = []
+            for la in lats:
+                riga = ""
+                for lo in lons:
+                    u = (f"https://api.open-meteo.com/v1/forecast?latitude={la}&longitude={lo}"
+                         f"&hourly=temperature_2m&models={m}&forecast_hours=3&cell_selection=nearest")
+                    try:
+                        d = json.load(urllib.request.urlopen(u, timeout=30))
+                        v = d["hourly"]["temperature_2m"][0]
+                        riga += "X" if v is not None else "n"
+                    except urllib.error.HTTPError as e:
+                        riga += "-"
+                    except Exception:
+                        riga += "?"
+                righe.append(f"{la}: {riga}")
+            print(f"::warning::{m} lon {lons} | " + " ; ".join(righe))
+        PY
