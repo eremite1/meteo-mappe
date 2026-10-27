@@ -64,8 +64,10 @@ LON_FINE = np.round(np.arange(EXTENT[0], EXTENT[1] + 1e-9, PASSO_FINE), 4)
 MODELLI = {
     "icon2i": dict(nome="ICON-2I", api="italia_meteo_arpae_icon_2i", ris="2,2 km",
                    passo=0.05, sigma=5, ogni_ore=1),
-    "arome":  dict(nome="AROME", api="meteofrance_arome_france", ris="2,5 km",
-                   passo=0.06, sigma=5, ogni_ore=1),
+    # AROME copre il Lazio solo fino a ~13° di longitudine: chiediamo i punti fino a 13,3°
+    # (la versione HD restituisce valori vuoti fuori dal suo territorio invece di un errore)
+    "arome":  dict(nome="AROME", api="meteofrance_arome_france_hd", ris="1,5 km",
+                   passo=0.06, sigma=4, ogni_ore=1, lon_max=13.3),
     "ecmwf":  dict(nome="ECMWF IFS", api="ecmwf_ifs", ris="9 km",
                    passo=0.10, sigma=15, ogni_ore=3),
     "ukmo":   dict(nome="UKMO", api="ukmo_global_deterministic_10km", ris="10 km",
@@ -97,13 +99,14 @@ def log(msg):
     print(msg, flush=True)
 
 
-def interpola(lat_src, lon_src, campo, lat_dst, lon_dst, metodo="linear"):
+def interpola(lat_src, lon_src, campo, lat_dst, lon_dst, metodo="linear", fuori=None):
+    """fuori=None prolunga i valori oltre i bordi; un numero li riempie con quel valore."""
     try:
         f = RegularGridInterpolator((lat_src, lon_src), campo, method=metodo,
-                                    bounds_error=False, fill_value=None)
+                                    bounds_error=False, fill_value=fuori)
     except ValueError:
         f = RegularGridInterpolator((lat_src, lon_src), campo, method="linear",
-                                    bounds_error=False, fill_value=None)
+                                    bounds_error=False, fill_value=fuori)
     LA, LO = np.meshgrid(lat_dst, lon_dst, indexing="ij")
     return f((LA, LO)).astype(np.float32)
 
@@ -209,6 +212,9 @@ class Limitatore:
 LIMITATORE = Limitatore()
 
 
+RIFIUTATO = "rifiutato"      # risposta 400: richiesta non valida (non serve riprovare uguale)
+
+
 def avviso(msg):
     """Messaggio visibile anche nel riepilogo di GitHub (annotazione)."""
     log(msg)
@@ -237,8 +243,9 @@ def scarica_blocco(cfg, punti, variabili=None):
                 time.sleep(65)
                 continue
             if r.status_code == 400:
-                avviso(f"[{cfg['nome']}] Open-Meteo rifiuta la richiesta: {r.text[:300]}")
-                return None
+                if len(punti) == 1 or "location" not in r.text:
+                    avviso(f"[{cfg['nome']}] Open-Meteo rifiuta la richiesta: {r.text[:300]}")
+                return RIFIUTATO
             log(f"  risposta {r.status_code}: {r.text[:300]}")
         except Exception as e:
             log(f"  errore di rete: {e}")
@@ -249,7 +256,7 @@ def scarica_blocco(cfg, punti, variabili=None):
 def griglia_modello(cfg):
     p = cfg["passo"]
     lat = np.round(np.arange(AREA_DATI[2], AREA_DATI[3] + 1e-9, p), 4)
-    lon = np.round(np.arange(AREA_DATI[0], AREA_DATI[1] + 1e-9, p), 4)
+    lon = np.round(np.arange(AREA_DATI[0], cfg.get("lon_max", AREA_DATI[1]) + 1e-9, p), 4)
     return lat, lon
 
 
@@ -257,12 +264,33 @@ def verifica_variabili(cfg):
     """Prova la richiesta su un solo punto; se il modello rifiuta qualche parametro,
     scopre quali accetta e continua solo con quelli (invece di fermarsi)."""
     punto = [(41.9, 12.5, 0, 0)]
-    if scarica_blocco(cfg, punto) is not None:
+    r = scarica_blocco(cfg, punto)
+    if r is None:
+        return []                       # problema di rete: inutile insistere
+    if r != RIFIUTATO:
         return list(VARIABILI_API)
-    ok = [v for v in VARIABILI_API if scarica_blocco(cfg, punto, [v]) is not None]
+    ok = [v for v in VARIABILI_API if scarica_blocco(cfg, punto, [v]) not in (None, RIFIUTATO)]
     if ok:
         avviso(f"[{cfg['nome']}] parametri accettati: {', '.join(ok)}")
     return ok
+
+
+def scarica_a_pezzi(cfg, blocco, variabili):
+    """Se un blocco viene rifiutato (es. qualche punto fuori dal territorio del modello),
+    lo divide a metà e riprova, così si salvano i punti validi."""
+    risp = scarica_blocco(cfg, blocco, variabili)
+    if risp is None:
+        return None                     # problema di rete
+    if risp != RIFIUTATO:
+        return risp
+    if len(blocco) == 1:
+        return [{}]                     # punto fuori dal territorio del modello: resta vuoto
+    meta = len(blocco) // 2
+    a = scarica_a_pezzi(cfg, blocco[:meta], variabili)
+    b = scarica_a_pezzi(cfg, blocco[meta:], variabili)
+    if a is None or b is None:
+        return None
+    return a + b
 
 
 def scarica_modello(cfg):
@@ -276,7 +304,7 @@ def scarica_modello(cfg):
     log(f"[{cfg['nome']}] scarico {len(punti)} punti in {len(blocchi)} richieste...")
     tempi, dati = None, {}
     for n, blocco in enumerate(blocchi):
-        risp = scarica_blocco(cfg, blocco, variabili)
+        risp = scarica_a_pezzi(cfg, blocco, variabili)
         if risp is None:
             log(f"  blocco {n + 1}/{len(blocchi)} perso")
             if n == 0:
@@ -322,7 +350,7 @@ class Elaboratore:
         T = mod["dati"]["temperature_2m"]
         # punti in cui il modello ha dati (per AROME: solo il suo territorio)
         copre = np.isfinite(T).any(axis=0).astype(np.float32)
-        self.maschera = interpola(self.lat, self.lon, copre, LAT_FINE, LON_FINE) >= 0.5
+        self.maschera = interpola(self.lat, self.lon, copre, LAT_FINE, LON_FINE, fuori=0.0) >= 0.5
         self.terreno = None
         if dem is not None:
             lat_d, lon_d, z_d = dem
