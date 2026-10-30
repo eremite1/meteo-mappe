@@ -136,6 +136,10 @@ def _isobare(c, liscia):
     return c.liscia(p, liscia)
 
 
+def _liscia_isobare(c):
+    return {"lazio": 16, "italia": 6, "europa": 1.5}[c.area]
+
+
 def _passo_isobare(c):
     return {"lazio": 1, "italia": 2, "europa": 4}[c.area]
 
@@ -179,7 +183,7 @@ P("pioggia", "Precipitazioni", "Precipitazioni", "mm nelle ore precedenti", S_PI
 P("pioggia_isobare", "Precipitazioni e isobare", "Precipitazioni", "mm nelle ore precedenti · isobare in hPa",
   S_PIOGGIA, {"italia", "europa"},
   lambda c: dict(campo=c.acc("precipitation"),
-                 contorni=(_isobare(c, 2), None, _passo_isobare(c))))
+                 contorni=(_isobare(c, _liscia_isobare(c)), None, _passo_isobare(c))))
 P("pioggia_totale", "Precipitazioni totali", "Precipitazioni", "mm dall'inizio della previsione",
   S_PIOGGIA_TOT, TUTTE, lambda c: c.acc_totale("precipitation"))
 P("rovesci", "Rovesci e temporali", "Precipitazioni", "mm di pioggia convettiva nelle ore precedenti",
@@ -217,8 +221,8 @@ P("nuvole_alte", "Nuvole alte", "Nuvole e pressione", "% (sopra i 6000 m)", S_NU
   lambda c: c.v("cloud_cover_high", 0, 100))
 P("pressione", "Pressione al livello del mare", "Nuvole e pressione", "hPa",
   dict(livelli=livelli(960, 1050, 2), cmap=plt.get_cmap("RdBu_r"), extend="both", alpha=0.55),
-  TUTTE, lambda c: dict(campo=_isobare(c, 16 if c.area == "lazio" else 2),
-                        contorni=(_isobare(c, 16 if c.area == "lazio" else 2), None, _passo_isobare(c))))
+  TUTTE, lambda c: dict(campo=_isobare(c, _liscia_isobare(c)),
+                        contorni=(_isobare(c, _liscia_isobare(c)), None, _passo_isobare(c))))
 P("visibilita", "Visibilità e nebbia", "Nuvole e pressione", "km",
   dict(livelli=[0.2, 0.5, 1, 2, 5, 10], colori=["#7a7a7a", "#9a9a9a", "#b8b8b8", "#d4d4d4", "#ececec"],
        extend="min", inverso=True), LOC, lambda c: c.visibilita())
