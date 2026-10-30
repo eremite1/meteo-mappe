@@ -1,0 +1,56 @@
+name: Sonda fonti dati (temporaneo)
+on: workflow_dispatch
+jobs:
+  sonda:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/setup-python@v5
+      with: { python-version: '3.11' }
+    - run: pip install -q omfiles fsspec s3fs requests numpy
+    - name: Prova
+      run: |
+        python3 - <<'PY'
+        import json, requests, datetime
+        B = "https://openmeteo.s3.amazonaws.com/data_spatial/"
+        modelli = ["italia_meteo_arpae_icon_2i","meteofrance_arome_france_hd","meteofrance_arome_france",
+                   "ecmwf_ifs","ecmwf_ifs025","ukmo_global_deterministic_10km","dwd_icon_eu","dwd_icon_d2",
+                   "dwd_icon","ncep_gfs013","ncep_gfs025","meteofrance_arpege_europe","knmi_harmonie_arome_europe",
+                   "dmi_harmonie_arome_europe","ecmwf_aifs025_single","meteoswiss_icon_ch1"]
+        out = []
+        for m in modelli:
+            try:
+                r = requests.get(B + m + "/latest.json", timeout=30)
+                if r.status_code != 200:
+                    out.append(f"{m}: NO ({r.status_code})"); continue
+                j = r.json()
+                s = json.dumps(j)[:600]
+                out.append(f"{m}: {s}")
+            except Exception as e:
+                out.append(f"{m}: ERR {e}")
+        for o in out:
+            print(o)
+            print("::warning::" + o[:900])
+        PY
+    - name: Leggi un file ICON-2I
+      run: |
+        python3 - <<'PY'
+        import json, requests, numpy as np
+        B = "https://openmeteo.s3.amazonaws.com/data_spatial/"
+        for m in ["italia_meteo_arpae_icon_2i", "ecmwf_ifs"]:
+            try:
+                j = requests.get(B + m + "/latest.json", timeout=30).json()
+                print(m, json.dumps(j)[:2000])
+                ref = j.get("reference_time") or j.get("run") or ""
+                # trova un file valido: prova i timestamps elencati
+                ts = j.get("valid_times") or j.get("timestamps") or []
+                print("chiavi:", list(j.keys()))
+                import omfiles, fsspec
+                print("omfiles", omfiles.__version__ if hasattr(omfiles,'__version__') else '')
+                print(dir(omfiles))
+                if ts:
+                    t = ts[min(3, len(ts)-1)]
+                    rt = ref
+                    print("prova", t, rt)
+            except Exception as e:
+                print("ERR", m, e)
+        PY
