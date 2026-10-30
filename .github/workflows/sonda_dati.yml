@@ -1,50 +1,22 @@
 name: Sonda fonti dati (temporaneo)
 on: workflow_dispatch
+permissions:
+  contents: write
 jobs:
   sonda:
     runs-on: ubuntu-latest
+    timeout-minutes: 60
     steps:
+    - uses: actions/checkout@v4
     - uses: actions/setup-python@v5
       with: { python-version: '3.11' }
-    - run: pip install -q omfiles fsspec requests numpy
-    - name: Prova
+    - run: pip install -q omfiles fsspec s3fs requests numpy
+    - run: python strumenti/sonda_campioni.py
+    - name: Pubblica campioni
       run: |
-        python3 - <<'PY'
-        import json, requests, numpy as np, time, traceback
-        B = "https://openmeteo.s3.amazonaws.com/data_spatial/"
-        msgs = []
-        def W(m): print(m); msgs.append(m)
-        import omfiles
-        W("omfiles " + str(getattr(omfiles, "__version__", "?")) + " dir: " + ",".join(x for x in dir(omfiles) if not x.startswith("_")))
-        for m in ["italia_meteo_arpae_icon_2i","meteofrance_arome_france_hd","ecmwf_ifs025","ukmo_global_deterministic_10km","dwd_icon_eu","ecmwf_ifs"]:
-            try:
-                j = requests.get(B + m + "/latest.json", timeout=30).json()
-                rt = j["reference_time"]; vt = j["valid_times"]
-                d = rt[:10].replace("-", "/"); hh = rt[11:13] + rt[14:16]
-                t = vt[min(6, len(vt)-1)].replace(":", "").replace("Z", "")
-                url = f"{B}{m}/{d}/{hh}Z/{t}.om"
-                t0 = time.time(); r = requests.get(url, timeout=300); dt = time.time() - t0
-                W(f"{m}: run {rt}, {len(vt)} tempi ({vt[0]}..{vt[-1]}), file {len(r.content)/1e6:.1f} MB in {dt:.1f}s, chiavi latest: {list(j.keys())}")
-                open("/tmp/f.om", "wb").write(r.content)
-                rd = None
-                for cls in ("OmFileReader", "OmFilePyReader"):
-                    if hasattr(omfiles, cls):
-                        rd = getattr(omfiles, cls)("/tmp/f.om"); break
-                W(f"{m}: reader {type(rd).__name__} attrs {[a for a in dir(rd) if not a.startswith('_')]}")
-                n = rd.num_children
-                nomi = []
-                for i in range(n):
-                    c = rd.get_child_by_index(i)
-                    sh = getattr(c, "shape", None)
-                    nomi.append(f"{c.name}{list(sh) if sh is not None else ''}")
-                W(f"{m}: {n} variabili: " + " ".join(nomi))
-            except Exception as e:
-                W(f"{m}: ERRORE {e} {traceback.format_exc()[-400:]}")
-        # massimo 10 annotazioni: le unisco
-        blocco = []
-        for x in msgs:
-            blocco.append(x)
-        txt = "\n".join(blocco)
-        for k in range(0, len(txt), 3500):
-            print("::warning::" + txt[k:k+3500].replace("\n", " || "))
-        PY
+        cd campioni
+        git init -q -b campioni
+        git -c user.name=a -c user.email=a@a add -A
+        git -c user.name=a -c user.email=a@a commit -q -m campioni
+        git push -q -f "https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git" campioni
+        du -sh .
