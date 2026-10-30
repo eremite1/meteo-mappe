@@ -64,7 +64,14 @@ jobs:
     - name: Genera le mappe
       env:
         FORZA: ${{ github.event.inputs.forza || 'false' }}
-      run: python -m motore.genera ${{ matrix.modello }}
+      run: |
+        set +e
+        python -m motore.genera ${{ matrix.modello }} 2>&1 | tee registro.txt
+        codice=${PIPESTATUS[0]}
+        if [ $codice -ne 0 ]; then
+          echo "::error::$(tail -c 3500 registro.txt | tr '\n' '|')"
+          exit $codice
+        fi
     - name: Pubblica nel ramo mappe-${{ matrix.modello }} (solo l'ultima corsa)
       env:
         TOKEN: ${{ secrets.GITHUB_TOKEN }}
