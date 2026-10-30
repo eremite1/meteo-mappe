@@ -242,6 +242,13 @@ class Contesto:
     def td_livello(self, liv):
         return C.punto_rugiada(self.v(f"temperature_{liv}"), self.v(f"relative_humidity_{liv}", 0, 100))
 
+    def nuvole(self):
+        """Nuvolosità totale; se il modello dà solo i tre strati, la stimo combinandoli."""
+        if self.ha("cloud_cover"):
+            return self.v("cloud_cover", 0, 100)
+        strati = [self.v(f"cloud_cover_{s}", 0, 100) / 100 for s in ("low", "mid", "high")]
+        return 100 * (1 - (1 - strati[0]) * (1 - strati[1]) * (1 - strati[2]))
+
     # --- vento -----------------------------------------------------------
     def uv(self, liv):
         chiave = ("uv", liv)

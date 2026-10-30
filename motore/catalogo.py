@@ -169,7 +169,7 @@ P("gelate", "Rischio gelate e brina", "Temperatura", "0 nessuno · 1 basso · 2 
   dict(livelli=[0.5, 1, 1.5, 2, 2.5, 3, 3.5, 4.01],
        colori=["#d6f0ff", "#a8d8f0", "#7cbde6", "#4f9ad6", "#2f6fc0", "#3d3da8", "#5b1f8f"],
        extend="neither", ombra=True), LOC,
-  lambda c: C.rischio_gelate(c.t2m(), c.ur2m(), c.v("cloud_cover"), c.vel("10m")))
+  lambda c: C.rischio_gelate(c.t2m(), c.ur2m(), c.nuvole(), c.vel("10m")))
 P("zero_termico", "Zero termico", "Temperatura", "metri di quota",
   dict(livelli=livelli(0, 4500, 250), cmap=plt.get_cmap("Spectral_r"), extend="max"), TUTTE,
   lambda c: c.zero_termico())
@@ -212,7 +212,7 @@ P("getto", "Corrente a getto (300 hPa)", "Vento", "km/h a circa 9000 m",
 # --- Nuvole, pressione, visibilità -----------------------------------------
 S_NUV = dict(livelli=[10, 20, 30, 40, 50, 60, 70, 80, 90, 100], cmap=CMAP_NUVOLE, extend="neither", ombra=True)
 P("nuvole", "Nuvolosità totale", "Nuvole e pressione", "% di cielo coperto", S_NUV, TUTTE,
-  lambda c: c.v("cloud_cover", 0, 100))
+  lambda c: c.nuvole())
 P("nuvole_basse", "Nuvole basse", "Nuvole e pressione", "% (sotto i 2000 m)", S_NUV, TUTTE,
   lambda c: c.v("cloud_cover_low", 0, 100))
 P("nuvole_medie", "Nuvole medie", "Nuvole e pressione", "% (2000-6000 m)", S_NUV, TUTTE,
