@@ -1,0 +1,79 @@
+name: Mappe meteo
+
+# Controlla spesso se c'è una corsa nuova di qualche modello; se c'è, la elabora.
+# (GitHub può ritardare questi avvii: in pratica partono ogni qualche ora.)
+on:
+  schedule:
+    - cron: '*/20 * * * *'
+  workflow_dispatch:
+    inputs:
+      modelli:
+        description: 'auto (solo i modelli con corsa nuova), tutti, oppure ad es. icon2i,ecmwf'
+        default: 'auto'
+        required: true
+      forza:
+        description: 'Rielabora anche se la corsa è già pubblicata'
+        type: boolean
+        default: false
+
+permissions:
+  contents: write
+
+jobs:
+  controlla:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    outputs:
+      modelli: ${{ steps.c.outputs.modelli }}
+    steps:
+    - uses: actions/checkout@v4
+    - uses: actions/setup-python@v5
+      with:
+        python-version: '3.11'
+    - run: pip install -q requests numpy scipy matplotlib
+    - id: c
+      run: python -m motore.controlla "${{ github.event.inputs.modelli || 'auto' }}" "${{ github.event.inputs.forza || 'false' }}" >> "$GITHUB_OUTPUT"
+    - run: cat "$GITHUB_OUTPUT"
+
+  genera:
+    needs: controlla
+    if: needs.controlla.outputs.modelli != '[]' && needs.controlla.outputs.modelli != ''
+    runs-on: ubuntu-latest
+    timeout-minutes: 240
+    strategy:
+      fail-fast: false
+      matrix:
+        modello: ${{ fromJson(needs.controlla.outputs.modelli) }}
+    concurrency:
+      group: mappe-${{ matrix.modello }}
+      cancel-in-progress: false
+    steps:
+    - uses: actions/checkout@v4
+    - uses: actions/setup-python@v5
+      with:
+        python-version: '3.11'
+        cache: pip
+    - name: Installa
+      run: pip install -q requests numpy scipy matplotlib cartopy shapely pillow omfiles fsspec s3fs
+    - name: Coste e confini (memorizzati tra un avvio e l'altro)
+      uses: actions/cache@v4
+      with:
+        path: ~/.local/share/cartopy
+        key: cartopy-naturalearth-v1
+    - name: Genera le mappe
+      env:
+        FORZA: ${{ github.event.inputs.forza || 'false' }}
+      run: python -m motore.genera ${{ matrix.modello }}
+    - name: Pubblica nel ramo mappe-${{ matrix.modello }} (solo l'ultima corsa)
+      env:
+        TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      run: |
+        if [ ! -f uscita/indice.json ]; then echo "Niente da pubblicare"; exit 0; fi
+        cd uscita
+        git init -q -b mappe-${{ matrix.modello }}
+        git config user.name 'actions-user'
+        git config user.email 'actions@github.com'
+        git add -A
+        git commit -q -m "Mappe ${{ matrix.modello }} $(date -u '+%Y-%m-%d %H:%M UTC') [skip ci]"
+        git push -q -f "https://x-access-token:${TOKEN}@github.com/${{ github.repository }}.git" mappe-${{ matrix.modello }}
+        echo "Pubblicate $(find . -name '*.png' | wc -l) mappe ($(du -sh . | cut -f1))"

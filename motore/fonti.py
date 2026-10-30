@@ -4,6 +4,7 @@ Lettura dei dati dall'archivio pubblico di Open-Meteo su Amazon S3 (data_spatial
 Ogni file .om contiene TUTTI i parametri di un istante di previsione di un modello.
 Si leggono solo i parametri e il riquadro geografico che servono.
 """
+import os
 import json
 import time
 import numpy as np
@@ -82,27 +83,48 @@ def griglia_o1280():
 # Lettura di un file
 # ---------------------------------------------------------------------------
 class FileOM:
-    def __init__(self, dataset, info, valido, tentativi=4):
+    """Scarica il file .om intero (molto più veloce che leggerlo a pezzi) e lo legge in locale."""
+
+    def __init__(self, dataset, info, valido, tentativi=4, cartella="/tmp/om"):
         import omfiles
+        os.makedirs(cartella, exist_ok=True)
         self.dataset = dataset
         self.info = info
         self.valido = valido
         p = percorso(dataset, info["reference_time"], valido)
+        url = URL_BASE + p[len(S3_BASE):]
+        self.locale = os.path.join(cartella, f"{dataset}_{os.getpid()}_{abs(hash(valido))}.om")
         ultimo_err = None
         for k in range(tentativi):
             try:
-                self.rd = omfiles.OmFileReader.from_fsspec(fs(), p)
+                with requests.get(url, stream=True, timeout=300) as r:
+                    r.raise_for_status()
+                    with open(self.locale, "wb") as f:
+                        for pezzo in r.iter_content(8 << 20):
+                            f.write(pezzo)
+                self.rd = omfiles.OmFileReader(self.locale)
                 break
             except Exception as e:
                 ultimo_err = e
-                time.sleep(3 * (k + 1))
+                time.sleep(5 * (k + 1))
         else:
-            raise IOError(f"impossibile aprire {p}: {ultimo_err}")
+            self.chiudi()
+            raise IOError(f"impossibile scaricare {url}: {ultimo_err}")
         self.nomi = set()
         for i in range(self.rd.num_children):
             c = self.rd.get_child_by_index(i)
             if c.is_array:
                 self.nomi.add(c.name)
+
+    def chiudi(self):
+        try:
+            self.rd.close()
+        except Exception:
+            pass
+        try:
+            os.remove(self.locale)
+        except Exception:
+            pass
 
     def ha(self, nome):
         return nome in self.nomi
