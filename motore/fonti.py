@@ -1,0 +1,144 @@
+"""
+Lettura dei dati dall'archivio pubblico di Open-Meteo su Amazon S3 (data_spatial).
+
+Ogni file .om contiene TUTTI i parametri di un istante di previsione di un modello.
+Si leggono solo i parametri e il riquadro geografico che servono.
+"""
+import json
+import time
+import numpy as np
+import requests
+
+URL_BASE = "https://openmeteo.s3.amazonaws.com/data_spatial/"
+S3_BASE = "openmeteo/data_spatial/"
+
+_fs = None
+
+
+def fs():
+    global _fs
+    if _fs is None:
+        import fsspec
+        _fs = fsspec.filesystem("s3", anon=True)
+    return _fs
+
+
+def ultimo(dataset):
+    """Contenuto di latest.json (ultima corsa completa) del dataset, o None."""
+    try:
+        r = requests.get(f"{URL_BASE}{dataset}/latest.json", timeout=30)
+        if r.status_code != 200:
+            return None
+        j = r.json()
+        j["bbox"] = _bbox(j.get("crs_wkt", ""))
+        j["ridotta"] = "Reduced Gaussian" in j.get("crs_wkt", "")
+        return j
+    except Exception:
+        return None
+
+
+def _bbox(wkt):
+    try:
+        b = wkt.split("BBOX[")[1].split("]")[0]
+        return [float(x) for x in b.split(",")]      # lat0, lon0, lat1, lon1
+    except Exception:
+        return None
+
+
+def percorso(dataset, corsa, valido):
+    """corsa e valido in formato ISO (es. 2026-10-30T12:00:00Z / 2026-10-30T15:00Z)."""
+    d = corsa[:10].replace("-", "/")
+    hh = corsa[11:13] + corsa[14:16]
+    t = valido.replace(":", "").replace("Z", "")[:15]
+    return f"{S3_BASE}{dataset}/{d}/{hh}Z/{t}.om"
+
+
+# ---------------------------------------------------------------------------
+# Griglia ridotta gaussiana O1280 (ECMWF IFS 9 km)
+# ---------------------------------------------------------------------------
+_O1280 = None
+
+
+def griglia_o1280():
+    """Coordinate dei 6.599.680 punti della griglia O1280, righe da nord a sud."""
+    global _O1280
+    if _O1280 is None:
+        n = 1280
+        x, _ = np.polynomial.legendre.leggauss(2 * n)
+        lat_righe = np.degrees(np.arcsin(x))[::-1]
+        lat, lon, inizio = [], [], [0]
+        for i in range(2 * n):
+            k = i + 1 if i < n else 2 * n - i
+            npt = 4 * k + 16
+            lat.append(np.full(npt, lat_righe[i], np.float32))
+            lo = np.arange(npt, dtype=np.float64) * 360.0 / npt
+            lon.append(np.where(lo >= 180, lo - 360, lo).astype(np.float32))
+            inizio.append(inizio[-1] + npt)
+        _O1280 = (np.concatenate(lat), np.concatenate(lon), np.array(inizio), lat_righe)
+    return _O1280
+
+
+# ---------------------------------------------------------------------------
+# Lettura di un file
+# ---------------------------------------------------------------------------
+class FileOM:
+    def __init__(self, dataset, info, valido, tentativi=4):
+        import omfiles
+        self.dataset = dataset
+        self.info = info
+        self.valido = valido
+        p = percorso(dataset, info["reference_time"], valido)
+        ultimo_err = None
+        for k in range(tentativi):
+            try:
+                self.rd = omfiles.OmFileReader.from_fsspec(fs(), p)
+                break
+            except Exception as e:
+                ultimo_err = e
+                time.sleep(3 * (k + 1))
+        else:
+            raise IOError(f"impossibile aprire {p}: {ultimo_err}")
+        self.nomi = set()
+        for i in range(self.rd.num_children):
+            c = self.rd.get_child_by_index(i)
+            if c.is_array:
+                self.nomi.add(c.name)
+
+    def ha(self, nome):
+        return nome in self.nomi
+
+    def leggi(self, nome, riquadro):
+        """Legge il parametro nel riquadro [lon0, lon1, lat0, lat1] (con margine).
+        Restituisce (lat, lon, valori): per le griglie regolari lat/lon sono 1D e valori 2D;
+        per la griglia ridotta ECMWF sono tre array 1D di punti sparsi."""
+        c = self.rd.get_child_by_name(nome)
+        lo0, lo1, la0, la1 = riquadro
+        if self.info["ridotta"]:
+            lat_p, lon_p, inizio, lat_righe = griglia_o1280()
+            righe = np.where((lat_righe >= la0) & (lat_righe <= la1))[0]
+            a, b = inizio[righe[0]], inizio[righe[-1] + 1]
+            dati = self._leggi(c, (slice(0, 1), slice(int(a), int(b)))).reshape(-1)
+            la, lo = lat_p[a:b], lon_p[a:b]
+            sel = (lo >= lo0) & (lo <= lo1)
+            return la[sel], lo[sel], dati[sel]
+        lat0, lon0, lat1, lon1 = self.info["bbox"]
+        ny, nx = c.shape[-2], c.shape[-1]
+        lat = np.linspace(lat0, lat1, ny)
+        lon = np.linspace(lon0, lon1, nx)
+        iy = np.where((lat >= la0) & (lat <= la1))[0]
+        ix = np.where((lon >= lo0) & (lon <= lo1))[0]
+        if iy.size == 0 or ix.size == 0:
+            raise KeyError("riquadro fuori dal dominio del modello")
+        sl = (slice(int(iy[0]), int(iy[-1]) + 1), slice(int(ix[0]), int(ix[-1]) + 1))
+        if len(c.shape) == 3:
+            sl = (slice(0, 1),) + sl
+        dati = self._leggi(c, sl).reshape(iy.size, ix.size)
+        return lat[iy], lon[ix], dati
+
+    @staticmethod
+    def _leggi(c, sl):
+        try:
+            a = c[sl]
+        except Exception:
+            a = c.read_array(sl)
+        return np.asarray(a, dtype=np.float32)

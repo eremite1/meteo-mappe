@@ -1,114 +1,64 @@
-"""Sonda temporanea: legge l'archivio Open-Meteo e salva piccoli campioni per lo sviluppo."""
-import json, time, traceback, os
-import numpy as np, requests, fsspec
-import omfiles
+"""Sonda temporanea: legge solo i parametri e i riquadri che servono, usando motore/fonti.py."""
+import json, time, traceback, os, sys
+import numpy as np
+sys.path.insert(0, ".")
+from motore import fonti
 
-B = "https://openmeteo.s3.amazonaws.com/data_spatial/"
 OUT = "campioni"; os.makedirs(OUT, exist_ok=True)
+LIV = ["1000hPa", "925hPa", "850hPa", "700hPa", "600hPa", "500hPa", "300hPa", "250hPa"]
+VAR = ["temperature_2m", "relative_humidity_2m", "dew_point_2m", "precipitation", "showers",
+       "snowfall_water_equivalent", "snow_depth", "snowfall_height", "freezing_level_height",
+       "wind_speed_10m", "wind_direction_10m", "wind_u_component_10m", "wind_v_component_10m",
+       "wind_gusts_10m", "cloud_cover", "cloud_cover_low", "cloud_cover_mid", "cloud_cover_high",
+       "pressure_msl", "visibility", "shortwave_radiation", "cape", "convective_inhibition",
+       "lightning_potential", "total_column_integrated_water_vapour", "sea_surface_temperature",
+       "boundary_layer_height"]
+for l in LIV:
+    VAR += [f"{x}_{l}" for x in ("temperature", "geopotential_height", "relative_humidity",
+                                 "wind_u_component", "wind_v_component", "wind_speed",
+                                 "wind_direction", "vertical_velocity")]
+ITALIA = [5.0, 20.0, 35.0, 48.4]
+EUROPA = [-24.0, 44.0, 29.0, 72.0]
+LAZIO = [10.9, 14.5, 40.6, 43.2]
+DS = {"italia_meteo_arpae_icon_2i": ITALIA, "meteofrance_arome_france_hd": LAZIO,
+      "ecmwf_ifs": ITALIA, "ecmwf_ifs025": EUROPA, "ukmo_global_deterministic_10km": ITALIA,
+      "dwd_icon_eu": ITALIA}
 rapporto = {}
-
-def coords_regolari(bbox, shape):
-    lat0, lon0, lat1, lon1 = bbox
-    return np.linspace(lat0, lat1, shape[0]), np.linspace(lon0, lon1, shape[1])
-
-def o1280():
-    n = 1280
-    x, _ = np.polynomial.legendre.leggauss(2 * n)
-    lat_rows = np.degrees(np.arcsin(x))[::-1]           # da nord a sud
-    lats, lons = [], []
-    for i in range(2 * n):
-        k = i + 1 if i < n else 2 * n - i
-        npt = 4 * k + 16
-        lats.append(np.full(npt, lat_rows[i])); lons.append(np.arange(npt) * 360.0 / npt)
-    lat = np.concatenate(lats); lon = np.concatenate(lons); lon = np.where(lon >= 180, lon - 360, lon)
-    return lat, lon
-
-VOGLIO = None  # tutte
-
-DATASET = {
-  "italia_meteo_arpae_icon_2i": dict(crop=[5, 20, 35, 48]),
-  "meteofrance_arome_france_hd": dict(crop=[11, 14.5, 40.5, 43.5]),
-  "ecmwf_ifs025": dict(crop=[-25, 45, 30, 72]),
-  "ecmwf_ifs": dict(crop=[5, 20, 35, 48]),
-  "ukmo_global_deterministic_10km": dict(crop=[-25, 45, 30, 72]),
-  "dwd_icon_eu": dict(crop=[-25, 45, 30, 72], coarse=2),
-}
-
-def leggi(child):
-    sh = child.shape
-    try:
-        return np.asarray(child[...])
-    except Exception:
-        return np.asarray(child.read_array(tuple(slice(0, s) for s in sh)))
-
-fs = fsspec.filesystem("s3", anon=True)
-for m, cfg in DATASET.items():
+for ds, rq in DS.items():
     info = {}
     try:
-        j = requests.get(B + m + "/latest.json", timeout=30).json()
-        info["latest"] = {k: v for k, v in j.items() if k != "crs_wkt"}
-        info["crs"] = j["crs_wkt"][-200:]
-        rt = j["reference_time"]; vt = j["valid_times"]
-        d = rt[:10].replace("-", "/"); hh = rt[11:13] + rt[14:16]
-        scelti = [vt[3], vt[4]] if len(vt) > 5 else vt[:2]
-        if m in ("ecmwf_ifs025",):
-            scelti = [vt[2], vt[3]]
-        info["file"] = []
-        for t in scelti:
-            tt = t.replace(":", "").replace("Z", "")
-            path = f"openmeteo/data_spatial/{m}/{d}/{hh}Z/{tt}.om"
+        j = fonti.ultimo(ds)
+        info["corsa"] = j["reference_time"]; info["n_tempi"] = len(j["valid_times"])
+        info["tempi"] = j["valid_times"][:12] + ["..."] + j["valid_times"][-3:]
+        info["bbox"] = j["bbox"]; info["ridotta"] = j["ridotta"]
+        info["variabili_latest"] = j.get("variables")
+        vt = j["valid_times"]
+        sel = vt[3:6] if ds != "ecmwf_ifs025" else vt[1:3]
+        info["letture"] = []
+        for t in sel:
             t0 = time.time()
-            rd = omfiles.OmFileReader.from_fsspec(fs, path)
-            nomi = [rd.get_child_by_index(i).name for i in range(rd.num_children)]
-            info["variabili"] = nomi
-            # scalari
-            sc = {}
-            for nm in ("forecast_reference_time", "valid_time", "coordinates", "created_at"):
-                try:
-                    c = rd.get_child_by_name(nm)
-                    sc[nm] = str(c.read_scalar())[:300]
-                except Exception as e:
-                    sc[nm] = f"ERR {e}"
-            info["scalari"] = sc
-            arr = {}
+            f = fonti.FileOM(ds, j, t)
+            t_ap = time.time() - t0
+            salva = {}
             t1 = time.time()
-            for nm in nomi:
-                c = rd.get_child_by_name(nm)
-                if not c.is_array:
-                    continue
-                if m == "ukmo_global_deterministic_10km" and not any(k in nm for k in (
-                    "2m", "10m", "msl", "precip", "rain", "snow", "cloud", "cape", "inhibition", "visib",
-                    "850hPa", "700hPa", "500hPa", "300hPa", "250hPa", "925hPa", "freezing", "water_vapour")):
-                    continue
-                a = leggi(c).astype(np.float32)
-                arr[nm] = a
-            dt_read = time.time() - t1
-            # ritaglio
-            nome0 = next(iter(arr))
-            shape = arr[nome0].shape
-            lo0, lo1, la0, la1 = cfg["crop"]
-            if m == "ecmwf_ifs":
-                lat, lon = o1280()
-                sel = (lat >= la0) & (lat <= la1) & (lon >= lo0) & (lon <= lo1)
-                salva = {k: v.reshape(-1)[sel].astype(np.float16) for k, v in arr.items()}
-                salva["_lat"] = lat[sel].astype(np.float32); salva["_lon"] = lon[sel].astype(np.float32)
-            else:
-                bb = [float(x) for x in j["crs_wkt"].split("BBOX[")[1].split("]")[0].split(",")]
-                lat, lon = coords_regolari(bb, shape)
-                iy = np.where((lat >= la0) & (lat <= la1))[0]; ix = np.where((lon >= lo0) & (lon <= lo1))[0]
-                c = cfg.get("coarse", 1)
-                iy = iy[::c]; ix = ix[::c]
-                salva = {k: v[np.ix_(iy, ix)].astype(np.float16) for k, v in arr.items()}
-                salva["_lat"] = lat[iy].astype(np.float32); salva["_lon"] = lon[ix].astype(np.float32)
-                # verifica orientamento: temperatura a Nord (Alpi) vs Sud (Sahara)
-                if "temperature_2m" in arr:
-                    T = arr["temperature_2m"]
-                    info["T_riga0_media"] = float(np.nanmean(T[0])); info["T_ultima_media"] = float(np.nanmean(T[-1]))
-            np.savez_compressed(f"{OUT}/{m}__{tt}.npz", **salva)
-            info["file"].append(dict(t=t, tempo_apertura=round(t1 - t0, 1), tempo_lettura=round(dt_read, 1), nvar=len(arr), shape=list(shape)))
+            for v in VAR:
+                if f.ha(v):
+                    la, lo, val = f.leggi(v, rq)
+                    salva[v] = val.astype(np.float16)
+            salva["_lat"] = la.astype(np.float32); salva["_lon"] = lo.astype(np.float32)
+            np.savez_compressed(f"{OUT}/{ds}__{t.replace(':', '')}.npz", **salva)
+            info["letture"].append(dict(t=t, apertura=round(t_ap, 1), lettura=round(time.time() - t1, 1),
+                                        nvar=len(salva) - 2, forma=list(val.shape)))
+            # statistiche per capire unità
+            info["statistiche"] = {k: [float(np.nanmin(v)), float(np.nanmean(v)), float(np.nanmax(v))]
+                                   for k, v in salva.items() if not k.startswith("_")}
+            info["mancanti"] = [v for v in VAR if v not in salva]
+            if not j["ridotta"]:
+                T = salva.get("temperature_2m")
+                if T is not None:
+                    info["T_sud_nord"] = [float(np.nanmean(T[0].astype(float))), float(np.nanmean(T[-1].astype(float)))]
     except Exception as e:
-        info["errore"] = f"{e} {traceback.format_exc()[-800:]}"
-    rapporto[m] = info
-    print(m, json.dumps(info)[:500], flush=True)
-
-json.dump(rapporto, open(f"{OUT}/rapporto.json", "w"), indent=1)
+        info["errore"] = f"{e} {traceback.format_exc()[-1200:]}"
+    rapporto[ds] = info
+    print(ds, json.dumps(info)[:300], flush=True)
+json.dump(rapporto, open(f"{OUT}/rapporto.json", "w"), indent=1, default=str)
