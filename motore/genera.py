@@ -708,8 +708,10 @@ def esegui(chiave, max_istanti=None, processi=None):
             tutti += r
             errori += e
     else:
+        # coste e confini preparati una volta sola qui; i processi figli li ricevono già pronti
+        _avvia_processo()
         ctx = mp.get_context("fork")
-        with ProcessPoolExecutor(nproc, mp_context=ctx, initializer=_avvia_processo) as ex:
+        with ProcessPoolExecutor(nproc, mp_context=ctx) as ex:
             for n, (r, e) in enumerate(ex.map(_fai_istante, compiti)):
                 tutti += r
                 errori += e
