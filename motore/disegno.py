@@ -74,6 +74,32 @@ class Disegnatore:
         except Exception:
             self.interni = []
 
+        # --- calcoli fatti una volta sola per tutte le mappe dell'area -----------------
+        # coordinate della griglia già nella proiezione della mappa (niente riproiezione a ogni mappa)
+        LO, LA = np.meshgrid(lon, lat)
+        if self.a["proiezione"] == "lambert":
+            pts = self.proj.transform_points(self.dati_crs, LO, LA)
+            self.X, self.Y = pts[..., 0], pts[..., 1]
+            self.crs_disegno = self.proj
+
+            def proietta(geoms):
+                out = []
+                for g in geoms:
+                    try:
+                        gp = self.proj.project_geometry(g, self.dati_crs)
+                        if not gp.is_empty:
+                            out.append(gp)
+                    except Exception:
+                        pass
+                return out
+            for nome in ("mare", "terra", "laghi", "coste", "stati", "interni"):
+                setattr(self, nome, proietta(getattr(self, nome)))
+            self.crs_geo = self.proj
+        else:
+            self.X, self.Y = LO, LA
+            self.crs_disegno = self.dati_crs
+            self.crs_geo = self.dati_crs
+
     # ------------------------------------------------------------------
     def disegna(self, file, campo, p, titolo_modello, data, scadenza, info,
                 contorni=None, frecce=None, unita=None):
@@ -87,8 +113,8 @@ class Disegnatore:
         ombra = st.get("ombra", False)
         dentro = np.where(np.isfinite(campo), 1.0, np.nan)
         if np.isfinite(dentro).any():
-            ax.contourf(self.lon, self.lat, dentro, levels=[0.5, 1.5], colors=["white"],
-                        transform=pc, zorder=0)
+            ax.contourf(self.X, self.Y, dentro, levels=[0.5, 1.5], colors=["white"],
+                        transform=self.crs_disegno, zorder=0)
         if ombra and self.ombra is not None:
             o = np.where(np.isfinite(campo), self.ombra, np.nan)
             ax.imshow(o, extent=[self.lon[0], self.lon[-1], self.lat[0], self.lat[-1]],
@@ -110,8 +136,8 @@ class Disegnatore:
             k = len(livelli) // 2
             campo_d = np.where((campo > livelli[k - 1]) & (campo < livelli[k]), np.nan, campo)
         alpha = st.get("alpha", 0.85 if ombra else 0.92)
-        mesh = ax.contourf(self.lon, self.lat, campo_d, levels=livelli, cmap=cmap, norm=norm,
-                           extend=st["extend"], alpha=alpha, transform=pc, zorder=1)
+        mesh = ax.contourf(self.X, self.Y, campo_d, levels=livelli, cmap=cmap, norm=norm,
+                           extend=st["extend"], alpha=alpha, transform=self.crs_disegno, zorder=1)
 
         if contorni is not None:
             cf, cl, passo = contorni
@@ -120,8 +146,8 @@ class Disegnatore:
                 if v.size:
                     cl = np.arange(np.floor(v.min() / passo) * passo, np.ceil(v.max() / passo) * passo + passo, passo)
             if cl is not None and len(cl) > 1:
-                cs = ax.contour(self.lon, self.lat, cf, levels=cl, colors="#1a1a1a",
-                                linewidths=0.7, transform=pc, zorder=4)
+                cs = ax.contour(self.X, self.Y, cf, levels=cl, colors="#1a1a1a",
+                                linewidths=0.7, transform=self.crs_disegno, zorder=4)
                 try:
                     ax.clabel(cs, cs.levels, fmt="%d", fontsize=7, inline=True)
                 except Exception:
@@ -134,22 +160,31 @@ class Disegnatore:
             mod = np.hypot(uu, vv)
             mod = np.where(mod < 0.5, np.nan, mod)
             lo2, la2 = np.meshgrid(self.lon[k // 2::k], self.lat[k // 2::k])
-            ax.quiver(lo2, la2, uu / mod, vv / mod, transform=pc, zorder=4, color="#1a1a1a",
+            un, vn = uu / mod, vv / mod
+            if self.crs_disegno is not pc:
+                # direzione delle frecce ruotata nella proiezione della mappa
+                un, vn = self.proj.transform_vectors(pc, lo2, la2, np.nan_to_num(un), np.nan_to_num(vn))
+                m2 = np.hypot(un, vn)
+                m2 = np.where(m2 == 0, np.nan, m2)
+                un, vn = un / m2, vn / m2
+                un = np.where(np.isfinite(mod), un, np.nan)
+            X2, Y2 = self.X[k // 2::k, k // 2::k], self.Y[k // 2::k, k // 2::k]
+            ax.quiver(X2, Y2, un, vn, transform=self.crs_disegno, zorder=4, color="#1a1a1a",
                       alpha=0.75, scale=38, width=0.0022, headwidth=4, headlength=4.5,
-                      headaxislength=4, regrid_shape=None)
+                      headaxislength=4)
 
         if st.get("solo_mare"):
-            ax.add_geometries(self.terra, pc, facecolor="#e9e4da", edgecolor="none", zorder=2)
+            ax.add_geometries(self.terra, self.crs_geo, facecolor="#e9e4da", edgecolor="none", zorder=2)
         else:
-            ax.add_geometries(self.mare, pc, facecolor=COLORE_MARE, edgecolor="none", zorder=2)
-        ax.add_geometries(self.laghi, pc, facecolor=COLORE_MARE, edgecolor="#5a7a99",
+            ax.add_geometries(self.mare, self.crs_geo, facecolor=COLORE_MARE, edgecolor="none", zorder=2)
+        ax.add_geometries(self.laghi, self.crs_geo, facecolor=COLORE_MARE, edgecolor="#5a7a99",
                           linewidth=0.4, zorder=2)
-        ax.add_geometries(self.coste, pc, facecolor="none", edgecolor="#333333",
+        ax.add_geometries(self.coste, self.crs_geo, facecolor="none", edgecolor="#333333",
                           linewidth=0.8 if self.area != "europa" else 0.6, zorder=3)
-        ax.add_geometries(self.stati, pc, facecolor="none", edgecolor="#333333",
+        ax.add_geometries(self.stati, self.crs_geo, facecolor="none", edgecolor="#333333",
                           linewidth=0.7, zorder=3)
         if self.interni:
-            ax.add_geometries(self.interni, pc, facecolor="none", edgecolor="#555555",
+            ax.add_geometries(self.interni, self.crs_geo, facecolor="none", edgecolor="#555555",
                               linewidth=0.4, zorder=3)
 
         for nome, (lo, la) in self.a["citta"].items():
