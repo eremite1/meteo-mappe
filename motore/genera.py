@@ -111,7 +111,10 @@ class Interpolatore:
             dx = lon_s[1] - lon_s[0] if lon_s.size > 1 else 1.0
             fy = (LA - lat_s[0]) / dy
             fx = (LO - lon_s[0]) / dx
-            self.fuori = (fy < -0.5) | (fy > lat_s.size - 0.5) | (fx < -0.5) | (fx > lon_s.size - 0.5)
+            # escludo anche 2 celle sul bordo del dominio del modello (zona di "raccordo" poco affidabile)
+            self.fuori = (fy < 2) | (fy > lat_s.size - 3) | (fx < 2) | (fx > lon_s.size - 3)
+            if lat_s[0] <= -89 or lat_s[-1] >= 89:            # modelli globali: nessun bordo vero
+                self.fuori = (fy < -0.5) | (fy > lat_s.size - 0.5) | (fx < -0.5) | (fx > lon_s.size - 0.5)
             self.coord = np.array([fy.ravel(), fx.ravel()])
 
     def __call__(self, valori, metodo="linear"):

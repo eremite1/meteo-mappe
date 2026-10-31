@@ -176,7 +176,8 @@ class Disegnatore:
         if st.get("solo_mare"):
             ax.add_geometries(self.terra, self.crs_geo, facecolor="#e9e4da", edgecolor="none", zorder=2)
         else:
-            ax.add_geometries(self.mare, self.crs_geo, facecolor=COLORE_MARE, edgecolor="none", zorder=2)
+            # mare sotto i colori: così pioggia, vento, nuvole... si vedono anche sul mare
+            ax.add_geometries(self.mare, self.crs_geo, facecolor=COLORE_MARE, edgecolor="none", zorder=0.6)
         ax.add_geometries(self.laghi, self.crs_geo, facecolor=COLORE_MARE, edgecolor="#5a7a99",
                           linewidth=0.4, zorder=2)
         ax.add_geometries(self.coste, self.crs_geo, facecolor="none", edgecolor="#333333",
