@@ -104,23 +104,32 @@ class Interpolatore:
             self.idx = tri.simplices[s]
             self.w = np.where((s >= 0)[:, None], w, np.nan)
         else:
-            self.lat_s, self.lon_s = lat_s, lon_s
-            self.punti = (LA, LO)
+            # indici "frazionari" dei punti di destinazione nella griglia di partenza (calcolati una volta)
+            dy = lat_s[1] - lat_s[0] if lat_s.size > 1 else 1.0
+            dx = lon_s[1] - lon_s[0] if lon_s.size > 1 else 1.0
+            fy = (LA - lat_s[0]) / dy
+            fx = (LO - lon_s[0]) / dx
+            self.fuori = (fy < -0.5) | (fy > lat_s.size - 0.5) | (fx < -0.5) | (fx > lon_s.size - 0.5)
+            self.coord = np.array([fy.ravel(), fx.ravel()])
 
     def __call__(self, valori, metodo="linear"):
         if self.sparsa:
             v = np.asarray(valori, dtype=np.float32).reshape(-1)
             return np.sum(v[self.idx] * self.w, axis=1).reshape(self.forma).astype(np.float32)
-        dati = valori
-        if metodo == "cubic" and np.isnan(dati).any():
-            metodo = "linear"
-        try:
-            f = RegularGridInterpolator((self.lat_s, self.lon_s), dati, method=metodo,
-                                        bounds_error=False, fill_value=np.nan)
-        except ValueError:
-            f = RegularGridInterpolator((self.lat_s, self.lon_s), dati, method="linear",
-                                        bounds_error=False, fill_value=np.nan)
-        return f(self.punti).astype(np.float32)
+        from scipy.ndimage import map_coordinates
+        dati = np.asarray(valori, dtype=np.float32)
+        buchi = ~np.isfinite(dati)
+        if buchi.any():
+            if buchi.all():
+                return np.full(self.forma, np.nan, np.float32)
+            dati = riempi(dati)
+        ordine = 3 if metodo == "cubic" else 1
+        out = map_coordinates(dati, self.coord, order=ordine, mode="nearest").reshape(self.forma)
+        if buchi.any():
+            m = map_coordinates(buchi.astype(np.float32), self.coord, order=1, mode="nearest").reshape(self.forma)
+            out[m > 0.5] = np.nan
+        out[self.fuori] = np.nan
+        return out.astype(np.float32)
 
 
 # ---------------------------------------------------------------------------
