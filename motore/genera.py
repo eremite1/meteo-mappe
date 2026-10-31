@@ -65,7 +65,7 @@ class Mancante(Exception):
 # ---------------------------------------------------------------------------
 def griglia_area(area):
     a = AREE[area]
-    e, p = a["extent"], a["passo"]
+    e, p = a.get("dati", a["extent"]), a["passo"]
     m = 0 if area == "lazio" else 2 * p
     lat = np.round(np.arange(e[2] - m, e[3] + m + 1e-9, p), 4)
     lon = np.round(np.arange(e[0] - m, e[1] + m + 1e-9, p), 4)
@@ -73,6 +73,8 @@ def griglia_area(area):
 
 
 def riquadro_area(area, margine=None):
+    if "dati" in AREE[area] and margine is None:
+        return list(AREE[area]["dati"])
     e = AREE[area]["extent"]
     m = margine if margine is not None else {"lazio": 0.4, "italia": 1.0, "europa": 4.0}[area]
     return [e[0] - m, e[1] + m, e[2] - m, e[3] + m]
@@ -392,10 +394,10 @@ class DatiSalvati:
 # Lavoro: tutto ciò che serve per una corsa di un modello
 # ---------------------------------------------------------------------------
 class Lavoro:
-    def __init__(self, chiave):
+    def __init__(self, chiave, aree=None):
         self.chiave = chiave
         self.cfg = MODELLI[chiave]
-        self.aree = list(self.cfg["aree"])
+        self.aree = [a for a in self.cfg["aree"] if not aree or a in aree]
         self.fonti = {a: fonti_di(chiave, a) for a in self.aree}
         self.dataset = sorted({d for a in self.aree for d in self.fonti[a]})
         self.info = {}
@@ -680,9 +682,9 @@ def _fai_istante(compito):
 
 
 # ---------------------------------------------------------------------------
-def esegui(chiave, max_istanti=None, processi=None):
+def esegui(chiave, max_istanti=None, processi=None, aree=None):
     t0 = time.time()
-    L = Lavoro(chiave)
+    L = Lavoro(chiave, aree)
     log(f"=== {L.cfg['nome']} · corsa {L.corsa:%Y-%m-%d %H} UTC · aree: {', '.join(L.aree)} ===")
     dem = carica_dem()
     if dem is not None and "lazio" in L.aree:
@@ -757,14 +759,15 @@ def esegui(chiave, max_istanti=None, processi=None):
         diag["errore"] = str(e)
 
     # indice
+    corsa_txt = L.corsa.strftime("%Y-%m-%dT%H:%MZ")
     indice = dict(modello=chiave, nome=L.cfg["nome"], risoluzione=L.cfg["ris"],
-                  corsa=L.corsa.strftime("%Y-%m-%dT%H:%MZ"),
+                  corsa=corsa_txt, corse={a: corsa_txt for a in L.aree},
                   aggiornato_utc=datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%MZ"),
                   aree={}, diagnostica=diag)
     for area, pid, nome, h, v in sorted(tutti, key=lambda x: (x[0], x[1], x[3])):
         indice["aree"].setdefault(area, {}).setdefault(pid, []).append(
             dict(file=f"{area}/{nome}", scadenza=h, valido_utc=v))
-    with open(os.path.join(USCITA, "indice.json"), "w") as f:
+    with open(os.path.join(USCITA, "indice_parziale.json"), "w") as f:
         json.dump(indice, f, separators=(",", ":"))
     log(f"=== Fine {L.cfg['nome']}: {len(tutti)} mappe in {time.time() - t0:.0f} s ===")
     return len(tutti)
@@ -772,13 +775,15 @@ def esegui(chiave, max_istanti=None, processi=None):
 
 if __name__ == "__main__":
     modello = sys.argv[1]
-    mx = int(sys.argv[2]) if len(sys.argv) > 2 else None
+    aree = sys.argv[2].split(",") if len(sys.argv) > 2 and sys.argv[2] not in ("", "tutte") else None
+    mx = int(sys.argv[3]) if len(sys.argv) > 3 else None
     # se nel frattempo la stessa corsa è già stata pubblicata, non rifaccio il lavoro
     if os.environ.get("FORZA", "false").lower() != "true":
         from .controlla import corsa_pubblicata, corsa_disponibile
-        if corsa_disponibile(modello) and corsa_disponibile(modello) == corsa_pubblicata(modello):
+        nuova = corsa_disponibile(modello)
+        if nuova and all(corsa_pubblicata(modello, a) == nuova for a in (aree or MODELLI[modello]["aree"])):
             log(f"{modello}: corsa già pubblicata, niente da fare.")
             sys.exit(0)
-    n = esegui(modello, max_istanti=mx)
+    n = esegui(modello, max_istanti=mx, aree=aree)
     if n == 0:
         sys.exit(1)

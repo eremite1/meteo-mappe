@@ -23,15 +23,25 @@ def fonti_ora(s):
 REPO = os.environ.get("GITHUB_REPOSITORY", "eremite1/meteo-mappe")
 
 
-def corsa_pubblicata(modello):
-    try:
-        r = requests.get(f"https://raw.githubusercontent.com/{REPO}/mappe-{modello}/indice.json",
-                         timeout=20)
-        if r.status_code == 200:
-            return r.json().get("corsa")
-    except Exception:
-        pass
-    return None
+_indici = {}
+
+
+def corsa_pubblicata(modello, area=None):
+    if modello not in _indici:
+        _indici[modello] = None
+        try:
+            r = requests.get(f"https://raw.githubusercontent.com/{REPO}/mappe-{modello}/indice.json",
+                             timeout=20)
+            if r.status_code == 200:
+                _indici[modello] = r.json()
+        except Exception:
+            pass
+    ind = _indici[modello]
+    if not ind:
+        return None
+    if area:
+        return (ind.get("corse") or {}).get(area, ind.get("corsa") if area in ind.get("aree", {}) else None)
+    return ind.get("corsa")
 
 
 def corsa_disponibile(modello):
@@ -62,14 +72,17 @@ def da_aggiornare(scelta="auto", forza=False):
     out = []
     for m in candidati:
         nuova = corsa_disponibile(m)
-        vecchia = corsa_pubblicata(m)
-        print(f"{m}: disponibile {nuova} · pubblicata {vecchia}", file=sys.stderr)
-        if nuova and (forza or scelta not in ("auto", "") or nuova != vecchia):
-            out.append(m)
+        for a in MODELLI[m]["aree"]:
+            vecchia = corsa_pubblicata(m, a)
+            print(f"{m}/{a}: disponibile {nuova} · pubblicata {vecchia}", file=sys.stderr)
+            if nuova and (forza or scelta not in ("auto", "") or nuova != vecchia):
+                out.append({"modello": m, "area": a})
     return out
 
 
 if __name__ == "__main__":
     scelta = sys.argv[1] if len(sys.argv) > 1 else "auto"
     forza = len(sys.argv) > 2 and sys.argv[2].lower() in ("true", "1", "forza", "si")
-    print("modelli=" + json.dumps(da_aggiornare(scelta, forza)))
+    lavori = da_aggiornare(scelta, forza)
+    print("lavori=" + json.dumps(lavori))
+    print("modelli=" + json.dumps(sorted({l["modello"] for l in lavori})))

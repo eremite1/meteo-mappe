@@ -63,7 +63,8 @@ AREE = {
                           "Venezia": (12.33, 45.44), "Cagliari": (9.11, 39.22),
                           "Reggio C.": (15.65, 38.11), "Pescara": (14.21, 42.46),
                           "Ancona": (13.52, 43.62), "Genova": (8.93, 44.41)}),
-    "europa": dict(nome="Europa", extent=[-20.0, 40.0, 33.0, 68.0], passo=0.15,
+    "europa": dict(nome="Europa", extent=[-20.0, 40.0, 33.0, 68.0], passo=0.2,
+                   dati=[-52.0, 78.0, 24.0, 80.0],     # più ampia: la proiezione mostra anche gli angoli
                    proiezione="lambert", centro=(10.0, 50.0), scala_coste="50m",
                    confini="stati", frecce_ogni=2.2, figsize=(10, 7.8),
                    citta={"Roma": (12.50, 41.90), "Parigi": (2.35, 48.86),

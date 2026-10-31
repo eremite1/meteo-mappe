@@ -1,7 +1,8 @@
 name: Mappe meteo
 
 # Controlla spesso se c'è una corsa nuova di qualche modello; se c'è, la elabora.
-# (GitHub può ritardare questi avvii: in pratica partono ogni qualche ora.)
+# Ogni modello e ogni area (Lazio, Italia, Europa) è un lavoro separato: girano in parallelo.
+# (GitHub può ritardare questi avvii programmati: in pratica partono ogni qualche ora.)
 on:
   schedule:
     - cron: '*/20 * * * *'
@@ -24,7 +25,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     outputs:
-      modelli: ${{ steps.c.outputs.modelli }}
+      lavori: ${{ steps.c.outputs.lavori }}
     steps:
     - uses: actions/checkout@v4
     - uses: actions/setup-python@v5
@@ -37,15 +38,15 @@ jobs:
 
   genera:
     needs: controlla
-    if: needs.controlla.outputs.modelli != '[]' && needs.controlla.outputs.modelli != ''
+    if: needs.controlla.outputs.lavori != '[]' && needs.controlla.outputs.lavori != ''
     runs-on: ubuntu-latest
     timeout-minutes: 240
     strategy:
       fail-fast: false
       matrix:
-        modello: ${{ fromJson(needs.controlla.outputs.modelli) }}
+        include: ${{ fromJson(needs.controlla.outputs.lavori) }}
     concurrency:
-      group: mappe-${{ matrix.modello }}
+      group: mappe-${{ matrix.modello }}-${{ matrix.area }}
       cancel-in-progress: false
     steps:
     - uses: actions/checkout@v4
@@ -60,28 +61,68 @@ jobs:
       uses: actions/cache@v4
       with:
         path: ~/.local/share/cartopy
-        key: cartopy-naturalearth-v1
+        key: cartopy-naturalearth-v2
     - name: Genera le mappe
       env:
         FORZA: ${{ github.event.inputs.forza || 'false' }}
       run: |
         set +e
-        python -m motore.genera ${{ matrix.modello }} 2>&1 | tee registro.txt
+        python -m motore.genera ${{ matrix.modello }} ${{ matrix.area }} 2>&1 | tee registro.txt
         codice=${PIPESTATUS[0]}
         if [ $codice -ne 0 ]; then
           echo "::error::$(tail -c 3500 registro.txt | tr '\n' '|')"
           exit $codice
         fi
-    - name: Pubblica nel ramo mappe-${{ matrix.modello }} (solo l'ultima corsa)
+        grep -E "Mappe disegnate|preparazione completata|download completato|Fine" registro.txt | sed 's/^/::notice::/'
+    - name: Consegna le mappe al passo di pubblicazione
+      if: hashFiles('uscita/indice_parziale.json') != ''
+      uses: actions/upload-artifact@v4
+      with:
+        name: mappe-${{ matrix.modello }}-${{ matrix.area }}
+        path: uscita/
+        retention-days: 1
+        compression-level: 0
+
+  pubblica:
+    needs: [controlla, genera]
+    if: always() && needs.controlla.outputs.lavori != '[]' && needs.controlla.outputs.lavori != ''
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    concurrency:
+      group: pubblica-mappe
+      cancel-in-progress: false
+    steps:
+    - uses: actions/checkout@v4
+    - uses: actions/setup-python@v5
+      with:
+        python-version: '3.11'
+    - run: pip install -q numpy scipy matplotlib
+    - uses: actions/download-artifact@v4
+      with:
+        pattern: mappe-*
+        path: artefatti
+    - name: Pubblica un ramo per modello (solo l'ultima corsa)
       env:
         TOKEN: ${{ secrets.GITHUB_TOKEN }}
       run: |
-        if [ ! -f uscita/indice.json ]; then echo "Niente da pubblicare"; exit 0; fi
-        cd uscita
-        git init -q -b mappe-${{ matrix.modello }}
-        git config user.name 'actions-user'
-        git config user.email 'actions@github.com'
-        git add -A
-        git commit -q -m "Mappe ${{ matrix.modello }} $(date -u '+%Y-%m-%d %H:%M UTC') [skip ci]"
-        git push -q -f "https://x-access-token:${TOKEN}@github.com/${{ github.repository }}.git" mappe-${{ matrix.modello }}
-        echo "Pubblicate $(find . -name '*.png' | wc -l) mappe ($(du -sh . | cut -f1))"
+        [ -d artefatti ] || { echo "Niente da pubblicare"; exit 0; }
+        REMOTO="https://x-access-token:${TOKEN}@github.com/${{ github.repository }}.git"
+        BASE="$PWD"
+        for modello in $(ls artefatti | sed -E 's/^mappe-([a-z0-9]+)-.*/\1/' | sort -u); do
+          RAMO="$RUNNER_TEMP/ramo-$modello"
+          rm -rf "$RAMO" && mkdir -p "$RAMO" && cd "$RAMO"
+          git init -q -b mappe-$modello
+          git config user.name 'actions-user'
+          git config user.email 'actions@github.com'
+          if git fetch -q --depth 1 "$REMOTO" mappe-$modello 2>/dev/null; then
+            git archive FETCH_HEAD | tar -x
+          fi
+          cd "$BASE"
+          python -m motore.unisci "$RAMO" artefatti/mappe-$modello-*
+          cd "$RAMO"
+          git add -A
+          git commit -q -m "Mappe $modello $(date -u '+%Y-%m-%d %H:%M UTC') [skip ci]"
+          git push -q -f "$REMOTO" mappe-$modello
+          echo "::notice::Pubblicato $modello: $(find . -name '*.png' | wc -l) mappe ($(du -sh --exclude=.git . | cut -f1))"
+          cd "$BASE"
+        done
