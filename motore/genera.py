@@ -400,12 +400,11 @@ class Lavoro:
         self.aree = [a for a in self.cfg["aree"] if not aree or a in aree]
         self.fonti = {a: fonti_di(chiave, a) for a in self.aree}
         self.dataset = sorted({d for a in self.aree for d in self.fonti[a]})
-        self.info = {}
-        for d in self.dataset:
-            j = fonti.ultimo(d)
-            if j is None:
-                raise RuntimeError(f"latest.json non disponibile per {d}")
-            self.info[d] = j
+        from .controlla import scegli_corsa
+        scelta = scegli_corsa(chiave)
+        if not scelta:
+            raise RuntimeError("nessuna corsa completa e abbastanza lunga disponibile")
+        self.info = {d: scelta[d] for d in self.dataset}
         corse = {self.info[d]["reference_time"] for d in self.dataset}
         if len(corse) > 1:
             raise RuntimeError(f"corse non allineate tra i dataset: {corse}")

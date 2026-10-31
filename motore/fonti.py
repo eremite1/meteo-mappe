@@ -38,6 +38,53 @@ def ultimo(dataset):
         return None
 
 
+def tempi_corsa(dataset, corsa):
+    """Elenca gli istanti disponibili di una corsa leggendo l'elenco dei file nell'archivio.
+    corsa: 'YYYY-MM-DDTHH:MM...'. Restituisce una lista di stringhe 'YYYY-MM-DDTHH:MMZ' (o None)."""
+    import re
+    prefisso = f"data_spatial/{dataset}/{corsa[:4]}/{corsa[5:7]}/{corsa[8:10]}/{corsa[11:13]}{corsa[14:16]}Z/"
+    chiavi, token = [], None
+    try:
+        for _ in range(10):
+            params = {"list-type": "2", "prefix": prefisso}
+            if token:
+                params["continuation-token"] = token
+            r = requests.get("https://openmeteo.s3.amazonaws.com/", params=params, timeout=30)
+            if r.status_code != 200:
+                return None
+            chiavi += re.findall(r"<Key>([^<]+)</Key>", r.text)
+            m = re.search(r"<NextContinuationToken>([^<]+)</NextContinuationToken>", r.text)
+            if not m:
+                break
+            token = m.group(1)
+    except Exception:
+        return None
+    tempi = []
+    for k in chiavi:
+        nome = k.rsplit("/", 1)[-1]
+        if nome.endswith(".om") and len(nome) >= 18:
+            t = nome[:-3]                                   # YYYY-MM-DDTHHMM
+            tempi.append(f"{t[:13]}:{t[13:15]}Z")
+    return sorted(tempi) or None
+
+
+def info_corsa(dataset, corsa, base=None):
+    """Come ultimo(), ma per una corsa specifica (anche non la più recente)."""
+    base = base or ultimo(dataset)
+    if base is None:
+        return None
+    if base["reference_time"][:16] == corsa[:16]:
+        return base
+    tempi = tempi_corsa(dataset, corsa)
+    if not tempi:
+        return None
+    j = dict(base)
+    j["reference_time"] = corsa[:16] + ":00Z"
+    j["valid_times"] = tempi
+    j["completed"] = True
+    return j
+
+
 def _bbox(wkt):
     try:
         b = wkt.split("BBOX[")[1].split("]")[0]

@@ -44,24 +44,49 @@ def corsa_pubblicata(modello, area=None):
     return ind.get("corsa")
 
 
-def corsa_disponibile(modello):
-    """Corsa completa disponibile per tutti i dataset del modello (o None)."""
+def _ore(vt):
+    return (fonti_ora(vt[-1]) - fonti_ora(vt[0])) / 3600 if vt else 0
+
+
+_scelte = {}
+
+
+def scegli_corsa(modello):
+    """La corsa più recente, completa e abbastanza lunga, disponibile per tutti i dataset del modello.
+    Restituisce {dataset: info} oppure None."""
+    if modello in _scelte:
+        return _scelte[modello]
+    from datetime import timedelta
     cfg = MODELLI[modello]
     dataset = sorted({d for a in cfg["aree"] for d in fonti_di(modello, a)})
-    corse = set()
-    for d in dataset:
-        j = fonti.ultimo(d)
-        if j is None or not j.get("completed", True):
-            return None
-        vt = j["valid_times"]
-        ore = (fonti_ora(vt[-1]) - fonti_ora(vt[0])) / 3600
-        if ore < cfg["min_ore"]:
-            return None                     # corsa breve intermedia: si aspetta quella lunga
-        corse.add(j["reference_time"])
-    if len(corse) != 1:
+    basi = {d: fonti.ultimo(d) for d in dataset}
+    if any(b is None for b in basi.values()):
+        _scelte[modello] = None
         return None
-    rt = next(iter(corse))
-    return rt[:16] + "Z" if len(rt) > 16 else rt
+    # candidati: dalla più vecchia "ultima corsa" dei dataset, indietro di 3 ore alla volta per 36 ore
+    t0 = min(datetime.fromisoformat(b["reference_time"][:16]) for b in basi.values())
+    for k in range(13):
+        c = (t0 - timedelta(hours=3 * k)).strftime("%Y-%m-%dT%H:%M")
+        infos = {}
+        for d in dataset:
+            j = fonti.info_corsa(d, c, basi[d])
+            if j is None or _ore(j["valid_times"]) < cfg["min_ore"]:
+                infos = None
+                break
+            infos[d] = j
+        if infos:
+            _scelte[modello] = infos
+            return infos
+    _scelte[modello] = None
+    return None
+
+
+def corsa_disponibile(modello):
+    infos = scegli_corsa(modello)
+    if not infos:
+        return None
+    rt = next(iter(infos.values()))["reference_time"]
+    return rt[:16] + "Z"
 
 
 def da_aggiornare(scelta="auto", forza=False):
