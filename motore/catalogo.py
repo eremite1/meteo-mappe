@@ -382,6 +382,11 @@ CATEGORIA_DI = {
                   "total_totals", "showalter", "lifted_index", "shear", "sweat"],
     "Suolo e agricoltura": ["gelate", "temperatura_suolo", "umidita_suolo", "evapotraspirazione", "incendi"],
 }
+# parametri che hanno senso solo sulla terraferma: il mare li copre
+for _p in PARAMETRI:
+    if _p["id"] in ("temperatura_suolo", "umidita_suolo", "evapotraspirazione", "incendi", "inversione", "gelate"):
+        _p["stile"] = dict(_p["stile"], solo_terra=True)
+
 for _cat, _ids in CATEGORIA_DI.items():
     for _p in PARAMETRI:
         if _p["id"] in _ids:
