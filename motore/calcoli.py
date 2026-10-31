@@ -209,3 +209,57 @@ def zero_termico_da_livelli(temps, quote, t2m=None, z_suolo=None):
     gelo = np.isnan(out) & (temps[0] <= 0)
     out = np.where(gelo, quote[0], out)
     return np.maximum(out, 0)
+
+
+# ---------------------------------------------------------------------------
+# Parametri aggiuntivi
+# ---------------------------------------------------------------------------
+def humidex(t, td):
+    """Humidex (indice di afa, canadese)."""
+    e = 6.11 * np.exp(5417.7530 * (1 / 273.16 - 1 / (td + K0)))
+    return t + 0.5555 * (e - 10.0)
+
+
+def tipo_precipitazione(pioggia_mm, tw):
+    """1 = pioggia, 2 = mista (pioggia e neve), 3 = neve; NaN dove non precipita.
+    Si basa sulla temperatura di bulbo umido vicino al suolo."""
+    tipo = np.where(tw <= 0.5, 3.0, np.where(tw <= 1.5, 2.0, 1.0))
+    # 0 = non precipita (lasciato trasparente); NaN solo fuori dal territorio del modello
+    return np.where(pioggia_mm >= 0.2, tipo, np.where(np.isfinite(pioggia_mm), 0.0, np.nan))
+
+
+def base_nubi(t, td):
+    """Quota approssimata della base delle nubi cumuliformi sopra il suolo (m): 125 m per grado di scarto."""
+    return np.clip(125.0 * (t - td), 0, None)
+
+
+def rischio_nebbia(t, td, vento_kmh, nuvole_basse=None):
+    """0 nessuno · 1 basso · 2 moderato · 3 alto. Aria quasi satura e vento debole."""
+    scarto = np.clip((2.5 - (t - td)) / 2.5, 0, 1)
+    calma = np.clip((15 - vento_kmh) / 12, 0, 1)
+    r = 3.0 * scarto * calma
+    if nuvole_basse is not None:
+        r = np.where(nuvole_basse > 80, np.maximum(r, 1.5 * scarto * 2), r)
+    return np.clip(np.round(r), 0, 3)
+
+
+def et0_oraria(t, ur, vento10_kmh, rad_wm2, quota_m=0.0):
+    """Evapotraspirazione di riferimento FAO-56 su base oraria (mm/ora): quanta acqua
+    perde un prato ben irrigato. Utile per orto e irrigazione."""
+    u2 = np.maximum(vento10_kmh / 3.6 * 0.748, 0.1)
+    p = 101.3 * ((293 - 0.0065 * quota_m) / 293) ** 5.26
+    gam = 0.000665 * p
+    es = 0.6108 * np.exp(17.27 * t / (t + 237.3))
+    ea = es * np.clip(ur, 0, 100) / 100
+    delta = 4098 * es / (t + 237.3) ** 2
+    rs = np.clip(rad_wm2, 0, None) * 0.0036
+    rn = 0.77 * rs - 0.07
+    g = np.where(rs > 0.01, 0.1 * rn, 0.5 * rn)
+    et = (0.408 * delta * (rn - g) + gam * (37 / (t + 273)) * u2 * (es - ea)) / (delta + gam * (1 + 0.34 * u2))
+    return np.clip(et, 0, None)
+
+
+def gradiente_verticale(t_basso, t_alto, z_basso, z_alto):
+    """Diminuzione di temperatura con la quota (°C per km) tra due livelli."""
+    dz = np.where(np.abs(z_alto - z_basso) < 1, np.nan, (z_alto - z_basso) / 1000.0)
+    return (t_basso - t_alto) / dz

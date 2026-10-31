@@ -303,5 +303,89 @@ P("incendi", "Pericolo incendi (Fosberg)", "Altri indici", "0-100 (sopra 50: alt
        extend="max"), LOC, lambda c: C.fosberg(c.t2m(), c.ur2m(), c.vel("10m")))
 
 
-CATEGORIE = ["Temperatura", "Precipitazioni", "Vento", "Nuvole e pressione", "Quota",
-             "Temporali", "Altri indici"]
+# --- Parametri aggiuntivi -------------------------------------------------------
+P("humidex", "Humidex (afa)", "Temperatura", "°C percepiti col caldo umido (sopra 40: disagio forte)",
+  dict(livelli=livelli(20, 48, 2), cmap=cm(["#ffffcc", "#ffeda0", "#fed976", "#feb24c", "#fd8d3c",
+                                               "#fc4e2a", "#e31a1c", "#b10026", "#67001f"], "afa"),
+       extend="both"), LOC, lambda c: C.humidex(c.t2m(), c.td2m()))
+P("inversione", "Inversione termica", "Temperatura",
+  "°C: temperatura a 1500 m meno quella al suolo (positiva = aria più calda in quota)",
+  dict(livelli=[-14, -12, -10, -8, -6, -4, -2, 0, 2, 4, 6, 8, 10], cmap=plt.get_cmap("RdBu_r"),
+       extend="both"), {"lazio"}, lambda c: c.v("temperature_850hPa") - c.t2m())
+P("t925", "Temperatura a 925 hPa (~800 m)", "Temperatura", "°C",
+  dict(livelli=livelli(-24, 34, 2), cmap=CMAP_TEMP, extend="both"), LOC,
+  lambda c: c.v("temperature_925hPa"))
+P("tipo_precipitazione", "Pioggia, neve o mista", "Precipitazioni", "tipo di precipitazione nelle ore precedenti",
+  dict(livelli=[0.5, 1.5, 2.5, 3.5], colori=["#3a8fd9", "#b36ad9", "#e8f4ff"], extend="neither",
+       ombra=True, etichette=["pioggia", "mista", "neve"]), LOC,
+  lambda c: C.tipo_precipitazione(c.acc("precipitation"), C.bulbo_umido(c.t2m(), c.ur2m())))
+P("vento_925", "Vento a 925 hPa (~800 m)", "Vento", "km/h",
+  dict(livelli=[10, 20, 30, 40, 50, 60, 70, 80, 100, 120], cmap=CMAP_VENTO, extend="max"), LOC,
+  lambda c: dict(campo=c.vel("925hPa"), frecce=c.uv("925hPa")))
+P("vento_700", "Vento a 700 hPa (~3000 m)", "Vento", "km/h",
+  dict(livelli=[10, 20, 30, 40, 50, 60, 80, 100, 120, 150], cmap=CMAP_VENTO, extend="max"), TUTTE,
+  lambda c: dict(campo=c.vel("700hPa"), frecce=c.uv("700hPa")))
+P("vento_500", "Vento a 500 hPa (~5500 m)", "Vento", "km/h",
+  dict(livelli=[20, 40, 60, 80, 100, 120, 140, 160, 200, 240], cmap=CMAP_VENTO, extend="max"), TUTTE,
+  lambda c: dict(campo=c.vel("500hPa"), frecce=c.uv("500hPa")))
+P("base_nubi", "Base delle nubi cumuliformi", "Nuvole e visibilità", "metri sopra il suolo",
+  dict(livelli=[100, 250, 500, 750, 1000, 1500, 2000, 2500, 3000], cmap=plt.get_cmap("GnBu_r"),
+       extend="max"), LOC, lambda c: C.base_nubi(c.t2m(), c.td2m()))
+P("nebbia", "Rischio nebbia", "Nuvole e visibilità", "",
+  dict(livelli=[0.5, 1.5, 2.5, 3.5], colori=["#d9d9d9", "#a6a6a6", "#6e6e6e"], extend="neither",
+       ombra=True, etichette=["basso", "moderato", "alto"]), LOC,
+  lambda c: C.rischio_nebbia(c.t2m(), c.td2m(), c.vel("10m"),
+                             c.v("cloud_cover_low", 0, 100) if c.ha("cloud_cover_low") else None))
+P("umidita_850", "Umidità relativa a 850 hPa", "Pressione e quota", "% a circa 1500 m",
+  dict(livelli=livelli(10, 100, 10), cmap=CMAP_UMIDO, extend="neither"), TUTTE,
+  lambda c: c.v("relative_humidity_850hPa", 0, 100))
+P("gradiente_850_500", "Gradiente termico 850-500 hPa", "Pressione e quota",
+  "°C per km (sopra 7: atmosfera instabile)",
+  dict(livelli=[4, 4.5, 5, 5.5, 6, 6.5, 7, 7.5, 8, 8.5, 9], cmap=CMAP_INSTAB, extend="both"), TUTTE,
+  lambda c: C.gradiente_verticale(c.v("temperature_850hPa"), c.v("temperature_500hPa"),
+                                  c.v("geopotential_height_850hPa"), c.v("geopotential_height_500hPa")))
+P("cape_shear", "Temporali organizzati (CAPE × shear)", "Temporali",
+  "sopra 1: possibili temporali organizzati · sopra 2: supercelle",
+  dict(livelli=[0.1, 0.25, 0.5, 0.75, 1, 1.5, 2, 3, 4], cmap=CMAP_INSTAB, extend="max", ombra=True), TUTTE,
+  lambda c: (c.v("cape", minimo=0) / 1000.0) * (C.shear(*c.uv("10m"), *c.uv("500hPa")) / 3.6 / 20.0))
+P("instabilita_potenziale", "Instabilità potenziale", "Temporali",
+  "°C: theta-e a 850 meno theta-e a 500 hPa (positivo = instabile se l'aria viene sollevata)",
+  dict(livelli=[-12, -8, -4, -2, 0, 2, 4, 6, 8, 12, 16], cmap=CMAP_INSTAB, extend="both"), TUTTE,
+  lambda c: C.theta_e(c.v("temperature_850hPa"), c.td_livello("850hPa"), 850.0)
+            - C.theta_e(c.v("temperature_500hPa"), c.td_livello("500hPa"), 500.0))
+P("temperatura_suolo", "Temperatura del terreno in superficie", "Suolo e agricoltura", "°C",
+  dict(livelli=livelli(-10, 40, 2), cmap=CMAP_TEMP, extend="both"), LOC,
+  lambda c: c.primo("soil_temperature_0cm", "soil_temperature_0_to_7cm"))
+P("umidita_suolo", "Umidità del terreno (primi cm)", "Suolo e agricoltura", "% di acqua nel terreno",
+  dict(livelli=[5, 10, 15, 20, 25, 30, 35, 40, 45], cmap=cm(["#8c510a", "#d8b365", "#f6e8c3", "#c7eae5",
+                                                              "#5ab4ac", "#01665e"], "suolo"), extend="both"),
+  LOC, lambda c: c.primo("soil_moisture_0_to_1cm", "soil_moisture_0_to_7cm", minimo=0) * 100)
+P("evapotraspirazione", "Evapotraspirazione (ET0)", "Suolo e agricoltura",
+  "mm/ora d'acqua persa da un prato (riferimento per irrigare)",
+  dict(livelli=[0.02, 0.05, 0.1, 0.15, 0.2, 0.3, 0.4, 0.5, 0.6, 0.8],
+       cmap=cm(["#f7fcb9", "#addd8e", "#41ab5d", "#006837", "#004529"], "et0"), extend="max"), LOC,
+  lambda c: C.et0_oraria(c.t2m(), c.ur2m(), c.vel("10m"), c.v("shortwave_radiation"), c.quota_suolo()))
+
+# --- Macrocategorie (ordine e raggruppamento sulla pagina) -------------------------
+CATEGORIA_DI = {
+    "Temperatura": ["temperatura", "percepita", "humidex", "rugiada", "bulbo_umido", "umidita",
+                    "inversione", "t925", "zero_termico", "quota_neve"],
+    "Precipitazioni": ["pioggia", "tipo_precipitazione", "pioggia_isobare", "pioggia_totale", "rovesci",
+                       "neve", "neve_totale", "neve_suolo"],
+    "Vento": ["vento", "raffiche", "vento_925", "vento_850", "vento_700", "vento_500", "getto"],
+    "Nuvole e visibilità": ["nuvole", "nuvole_basse", "nuvole_medie", "nuvole_alte", "base_nubi",
+                            "nebbia", "visibilita", "radiazione"],
+    "Pressione e quota": ["pressione", "z500_t500", "t850", "umidita_850", "umidita_700",
+                          "moti_verticali", "theta_e_850", "gradiente_850_500", "acqua_precipitabile",
+                          "strato_limite", "temperatura_mare"],
+    "Temporali": ["cape", "cin", "fulminazioni", "cape_shear", "instabilita_potenziale", "k_index",
+                  "total_totals", "showalter", "lifted_index", "shear", "sweat"],
+    "Suolo e agricoltura": ["gelate", "temperatura_suolo", "umidita_suolo", "evapotraspirazione", "incendi"],
+}
+for _cat, _ids in CATEGORIA_DI.items():
+    for _p in PARAMETRI:
+        if _p["id"] in _ids:
+            _p["categoria"] = _cat
+CATEGORIE = list(CATEGORIA_DI)
+_ordine = [i for ids in CATEGORIA_DI.values() for i in ids]
+PARAMETRI.sort(key=lambda p: _ordine.index(p["id"]) if p["id"] in _ordine else 999)

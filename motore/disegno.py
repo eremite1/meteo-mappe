@@ -199,6 +199,12 @@ class Disegnatore:
                             aspect=30, extend=st["extend"])
         cbar.set_label(unita or p["unita"], fontsize=8.5, fontweight="bold")
         cbar.ax.tick_params(labelsize=7.5)
+        if st.get("etichette"):
+            # scala a categorie: scritte al posto dei numeri
+            centri = [(livelli[i] + livelli[i + 1]) / 2 for i in range(len(livelli) - 1)]
+            cbar.set_ticks(centri)
+            cbar.set_ticklabels(st["etichette"], fontsize=8.5, fontweight="bold")
+            cbar.ax.tick_params(length=0)
 
         ax.set_title(p["titolo"], loc="left", fontsize=14, fontweight="bold", pad=24)
         ax.set_title(titolo_modello, loc="right", fontsize=11.5, fontweight="bold",

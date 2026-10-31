@@ -265,6 +265,18 @@ class Contesto:
     def td_livello(self, liv):
         return C.punto_rugiada(self.v(f"temperature_{liv}"), self.v(f"relative_humidity_{liv}", 0, 100))
 
+    def primo(self, *nomi, **kw):
+        """Il primo dei parametri indicati che il modello fornisce."""
+        for n in nomi:
+            if self.ha(n):
+                return self.v(n, **kw)
+        raise Mancante(nomi[0])
+
+    def quota_suolo(self):
+        if self.area == "lazio" and self.L.terreno is not None:
+            return self.L.terreno["z"]
+        return 0.0
+
     def nuvole(self):
         """Nuvolosità totale; se il modello dà solo i tre strati, la stimo combinandoli."""
         if self.ha("cloud_cover"):
@@ -382,7 +394,8 @@ VARIABILI_UTILI = [
     "wind_gusts_10m", "cloud_cover", "cloud_cover_low", "cloud_cover_mid", "cloud_cover_high",
     "pressure_msl", "visibility", "shortwave_radiation", "cape", "convective_inhibition",
     "lightning_potential", "total_column_integrated_water_vapour", "sea_surface_temperature",
-    "boundary_layer_height"] + [f"{x}_{l}" for l in LIVELLI for x in (
+    "boundary_layer_height", "soil_temperature_0cm", "soil_temperature_0_to_7cm",
+    "soil_moisture_0_to_1cm", "soil_moisture_0_to_7cm", "direct_radiation"] + [f"{x}_{l}" for l in LIVELLI for x in (
         "temperature", "geopotential_height", "relative_humidity", "wind_u_component",
         "wind_v_component", "wind_speed", "wind_direction", "vertical_velocity")]
 CARTELLA_DATI = "dati_corsa"
