@@ -65,7 +65,7 @@ def tempi_corsa(dataset, corsa):
         if nome.endswith(".om") and len(nome) >= 18:
             t = nome[:-3]                                   # YYYY-MM-DDTHHMM
             tempi.append(f"{t[:13]}:{t[13:15]}Z")
-    return sorted(tempi) or None
+    return sorted(set(tempi)) or None
 
 
 def info_corsa(dataset, corsa, base=None):

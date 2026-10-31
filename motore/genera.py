@@ -409,7 +409,7 @@ class Lavoro:
         if len(corse) > 1:
             raise RuntimeError(f"corse non allineate tra i dataset: {corse}")
         self.corsa = t_iso(next(iter(corse)))
-        self.tempi = {d: [t_iso(t) for t in self.info[d]["valid_times"]] for d in self.dataset}
+        self.tempi = {d: sorted({t_iso(t) for t in self.info[d]["valid_times"]}) for d in self.dataset}
         self.griglie = {a: griglia_area(a) for a in self.aree}
         self.passo = {a: self.cfg["aree"][a][0] for a in self.aree}
         self._interp = {}
