@@ -11,7 +11,7 @@ from PIL import Image
 
 from .catalogo import AREE
 
-COLORE_MARE = "#dceefc"
+COLORE_MARE = "#e6ebf0"
 FIRMA = "www.meteonerola.it"
 
 
