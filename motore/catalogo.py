@@ -54,6 +54,7 @@ AREE = {
                          "FR": (13.3441, 41.6390), "RI": (12.8634, 42.4036),
                          "VT": (12.1081, 42.4204), "Nerola": (12.7856, 42.1606)}),
     "italia": dict(nome="Italia", extent=[6.0, 19.0, 36.0, 47.4], passo=0.03,
+                   dati=[3.0, 22.0, 34.5, 48.9],
                    proiezione="lambert", centro=(12.5, 42.0), scala_coste="10m",
                    confini="regioni", frecce_ogni=0.55, figsize=(9.2, 9.4),
                    citta={"Roma": (12.50, 41.90), "Milano": (9.19, 45.46),
