@@ -89,8 +89,9 @@ CMAP_TEMP = cm(["#2c0a4a", "#5b2a8c", "#3f4fbf", "#2f8fd8", "#5cc8e8", "#a6e6d8"
                 "#7a0b2a"], "temp")
 CMAP_PIOGGIA = ["#c8e6ff", "#96cdff", "#5aaaf5", "#1e78dc", "#00b45a", "#5ad200",
                 "#c8e600", "#ffdc00", "#ffa000", "#ff3c00", "#c80078", "#800080"]
-CMAP_NEVE = ["#e8f4ff", "#c6e2ff", "#a0c8f0", "#78aee6", "#5590d2", "#6a6ad2",
-             "#8c55c8", "#aa3cb4", "#c8288c", "#dc1e5a"]
+# neve: si parte da un azzurro ciano ben visibile (non bianco, altrimenti si confonde col terreno)
+CMAP_NEVE = ["#8fe3f0", "#4fcbe6", "#1fa9dc", "#1f7fd2", "#3d5ccc", "#6544c4",
+             "#8f33b8", "#b5249e", "#d6197c", "#e8125a"]
 CMAP_VENTO = cm(["#f7fbff", "#c6e9c2", "#7fd0a8", "#3fb0c8", "#2b7fd8", "#7b5cd6",
                  "#c53fb3", "#e8355f", "#f08a1f", "#ffe14d"], "vento")
 CMAP_NUVOLE = cm(["#eef2f6", "#c3cbd3", "#8e99a6", "#56606c"], "nuvole")
@@ -316,7 +317,7 @@ P("t925", "Temperatura a 925 hPa (~800 m)", "Temperatura", "°C",
   dict(livelli=livelli(-24, 34, 2), cmap=CMAP_TEMP, extend="both"), LOC,
   lambda c: c.v("temperature_925hPa"))
 P("tipo_precipitazione", "Pioggia, neve o mista", "Precipitazioni", "tipo di precipitazione nelle ore precedenti",
-  dict(livelli=[0.5, 1.5, 2.5, 3.5], colori=["#3a8fd9", "#b36ad9", "#e8f4ff"], extend="neither",
+  dict(livelli=[0.5, 1.5, 2.5, 3.5], colori=["#2f80ed", "#f2a12e", "#d6249f"], extend="neither",
        ombra=True, etichette=["pioggia", "mista", "neve"]), LOC,
   lambda c: C.tipo_precipitazione(c.acc("precipitation"), C.bulbo_umido(c.t2m(), c.ur2m())))
 P("vento_925", "Vento a 925 hPa (~800 m)", "Vento", "km/h",
