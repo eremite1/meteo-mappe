@@ -105,6 +105,8 @@ class Interpolatore:
             w = np.column_stack([b, 1 - b.sum(axis=1)])
             self.idx = tri.simplices[s]
             self.w = np.where((s >= 0)[:, None], w, np.nan)
+            passo_d = abs(lat_d[1] - lat_d[0]) if lat_d.size > 1 else 0.05
+            self.sigma = max(0.0, 0.035 / passo_d)          # ~ mezza maglia del modello
         else:
             # indici "frazionari" dei punti di destinazione nella griglia di partenza (calcolati una volta)
             dy = lat_s[1] - lat_s[0] if lat_s.size > 1 else 1.0
@@ -120,7 +122,12 @@ class Interpolatore:
     def __call__(self, valori, metodo="linear"):
         if self.sparsa:
             v = np.asarray(valori, dtype=np.float32).reshape(-1)
-            return np.sum(v[self.idx] * self.w, axis=1).reshape(self.forma).astype(np.float32)
+            out = np.sum(v[self.idx] * self.w, axis=1).reshape(self.forma).astype(np.float32)
+            if self.sigma > 0.8:
+                ok = np.isfinite(out)
+                if ok.any():
+                    out = np.where(ok, gaussian_filter(np.where(ok, out, np.nanmean(out)), self.sigma), np.nan)
+            return out.astype(np.float32)
         from scipy.ndimage import map_coordinates
         dati = np.asarray(valori, dtype=np.float32)
         buchi = ~np.isfinite(dati)
@@ -200,6 +207,8 @@ class Contesto:
             else:
                 campo = interp(val, metodo)
             campo = campo * self.L.scala(nome)
+            if nome == "pressure_msl" and np.nanmedian(campo) > 5000:
+                campo = campo / 100.0                       # alcuni dataset la danno in Pa
             campo = self.L.maschera(self.area, campo)
             self.cache[chiave] = campo
         c = self.cache[chiave]
