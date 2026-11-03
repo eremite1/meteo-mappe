@@ -170,6 +170,72 @@ def prepara_terreno(dem, lat_f, lon_f):
 
 
 # ---------------------------------------------------------------------------
+# Pagella: valori della previsione nei punti delle stazioni meteo del Lazio
+# ---------------------------------------------------------------------------
+# le stazioni sono quelle già raccolte dalla pagella di WRF Nerola (aeroporti e Protezione Civile)
+URL_STAZIONI = "https://raw.githubusercontent.com/eremite1/wrf-nerola/storico/osservazioni.csv"
+CAMPI_PUNTI = ["corsa", "valido", "ore", "passo", "id", "T", "Td", "V", "P", "h"]
+
+
+def carica_stazioni(lat, lon):
+    """Stazioni dentro l'area Lazio con la cella della griglia più vicina: [(id, iy, ix)]."""
+    import csv
+    import io
+    import requests
+    try:
+        r = requests.get(URL_STAZIONI, timeout=60)
+        r.raise_for_status()
+    except Exception as e:
+        avviso(f"elenco stazioni per la pagella non disponibile: {e}")
+        return []
+    viste, out = set(), []
+    for riga in csv.DictReader(io.StringIO(r.text)):
+        if riga["id"] in viste:
+            continue
+        viste.add(riga["id"])
+        try:
+            la, lo = float(riga["lat"]), float(riga["lon"])
+        except ValueError:
+            continue
+        if not (lat[1] <= la <= lat[-2] and lon[1] <= lo <= lon[-2]):
+            continue
+        iy = int(round((la - lat[0]) / (lat[1] - lat[0])))
+        ix = int(round((lo - lon[0]) / (lon[1] - lon[0])))
+        out.append((riga["id"], iy, ix))
+    return out
+
+
+def valori_punti(ctx, L, h):
+    """Righe della pagella per un istante dell'area Lazio (gli stessi valori mostrati sulle mappe)."""
+    punti = L.punti
+    if not punti:
+        return []
+    iy = np.array([p[1] for p in punti])
+    ix = np.array([p[2] for p in punti])
+
+    def prendi(f, cifre=1):
+        try:
+            c = f()
+            v = c[iy, ix]
+            return [None if not np.isfinite(x) else round(float(x), cifre) for x in v]
+        except Exception:
+            return [None] * len(punti)
+    T = prendi(ctx.t2m)
+    Td = prendi(ctx.td2m)
+    V = prendi(lambda: ctx.vel("10m"))
+    P = prendi(lambda: ctx.acc("precipitation"), 2) if h > 0 else [None] * len(punti)
+    z = [round(float(x)) for x in L.terreno["z"][iy, ix]] if L.terreno is not None else [None] * len(punti)
+    corsa = L.corsa.strftime("%Y-%m-%dT%H:%MZ")
+    valido = ctx.t.strftime("%Y-%m-%dT%H:%MZ")
+    righe = []
+    for n, (sid, _, _) in enumerate(punti):
+        if T[n] is None:
+            continue                                  # fuori dal dominio del modello (es. AROME a sud)
+        righe.append([corsa, valido, h, L.passo["lazio"], sid, T[n], Td[n], V[n], P[n], z[n]])
+    return righe
+
+
+# ---------------------------------------------------------------------------
 # Contesto: dà al catalogo i parametri già sulla griglia dell'area
 # ---------------------------------------------------------------------------
 class Contesto:
@@ -446,6 +512,7 @@ class Lavoro:
         self.segno_ascesa = 1.0
         self.scale_corsa = {}
         self.disponibili = {}          # (ds, area, t) -> percorso del file salvato
+        self.punti = []                # stazioni per la pagella (solo Lazio)
 
     # --- istanti da disegnare --------------------------------------------
     def istanti(self, area):
@@ -667,7 +734,7 @@ def _avvia_processo():
 def _fai_istante(compito):
     area_istanti = compito
     L = _G["lavoro"]
-    risultati, errori = [], []
+    risultati, errori, punti = [], [], []
     for area, k, h, t in area_istanti:
         ctx = Contesto(L, area, t)
         dis = _G["disegnatori"][area]
@@ -701,8 +768,13 @@ def _fai_istante(compito):
             except Exception as e:
                 if not isinstance(e, (Mancante, KeyError)):
                     errori.append(f"{area}/{p['id']}/+{h}h: {type(e).__name__}: {e}")
+        if area == "lazio":
+            try:
+                punti += valori_punti(ctx, L, h)
+            except Exception as e:
+                errori.append(f"pagella/+{h}h: {type(e).__name__}: {e}")
         L.libera(t)
-    return risultati, errori
+    return risultati, errori, punti
 
 
 # ---------------------------------------------------------------------------
@@ -713,6 +785,10 @@ def esegui(chiave, max_istanti=None, processi=None, aree=None):
     dem = carica_dem()
     if dem is not None and "lazio" in L.aree:
         L.terreno = prepara_terreno(dem, *L.griglie["lazio"])
+
+    if "lazio" in L.aree:
+        L.punti = carica_stazioni(*L.griglie["lazio"])
+        log(f"Stazioni per la pagella: {len(L.punti)}")
 
     log("Scarico i dati della corsa...")
     if os.path.exists(CARTELLA_DATI):
@@ -741,22 +817,24 @@ def esegui(chiave, max_istanti=None, processi=None, aree=None):
 
     _G["lavoro"] = L
     nproc = processi or max(1, min(4, os.cpu_count() or 1))
-    tutti, errori = [], []
+    tutti, errori, punti = [], [], []
     t1 = time.time()
     if nproc == 1:
         _avvia_processo()
         for n, c in enumerate(compiti):
-            r, e = _fai_istante(c)
+            r, e, pu = _fai_istante(c)
             tutti += r
             errori += e
+            punti += pu
     else:
         # coste e confini preparati una volta sola qui; i processi figli li ricevono già pronti
         _avvia_processo()
         ctx = mp.get_context("fork")
         with ProcessPoolExecutor(nproc, mp_context=ctx) as ex:
-            for n, (r, e) in enumerate(ex.map(_fai_istante, compiti)):
+            for n, (r, e, pu) in enumerate(ex.map(_fai_istante, compiti)):
                 tutti += r
                 errori += e
+                punti += pu
                 if (n + 1) % 10 == 0:
                     log(f"  istanti completati: {n + 1}/{len(compiti)} ({time.time() - t1:.0f} s)")
     log(f"Mappe disegnate: {len(tutti)} in {time.time() - t1:.0f} s")
@@ -781,6 +859,14 @@ def esegui(chiave, max_istanti=None, processi=None, aree=None):
             diag[f"{ds}:_coord"] = [float(la[0]), float(la[-1]), float(lo[0]), float(lo[-1])]
     except Exception as e:
         diag["errore"] = str(e)
+
+    if punti:
+        import csv
+        with open(os.path.join(USCITA, "punti_lazio.csv"), "w", newline="") as f:
+            w = csv.writer(f)
+            w.writerow(CAMPI_PUNTI)
+            w.writerows(sorted(punti, key=lambda r: (r[1], r[4])))
+        log(f"Valori nei punti delle stazioni: {len(punti)} righe")
 
     # indice
     corsa_txt = L.corsa.strftime("%Y-%m-%dT%H:%MZ")

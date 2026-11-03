@@ -1,0 +1,71 @@
+name: Pagella Mappe Lazio
+
+# Confronta le previsioni delle Mappe Lazio (tutti i modelli) con le stazioni meteo reali.
+# Parte dopo ogni pubblicazione delle mappe e comunque ogni 3 ore.
+# Risultato nel ramo "pagella": pagella.json (letto dal sito) e lo storico delle previsioni nei punti.
+on:
+  workflow_run:
+    workflows: ["Mappe meteo"]
+    types: [completed]
+  schedule:
+    - cron: '50 */3 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: pagella-mappe
+  cancel-in-progress: false
+
+jobs:
+  pagella:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+    - uses: actions/checkout@v4
+    - uses: actions/setup-python@v5
+      with:
+        python-version: '3.11'
+    - run: pip install -q numpy requests
+
+    - name: Osservazioni delle stazioni (raccolte dalla pagella di WRF Nerola)
+      run: |
+        curl -fsSL --retry 4 -o osservazioni.csv "https://raw.githubusercontent.com/eremite1/wrf-nerola/storico/osservazioni.csv"
+        wc -l osservazioni.csv
+
+    - name: Previsioni nei punti delle stazioni (ultima corsa di ogni modello)
+      env:
+        TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      run: |
+        REMOTO="https://x-access-token:${TOKEN}@github.com/${{ github.repository }}.git"
+        mkdir -p punti
+        for m in icon2i arome ecmwf ukmo iconeu; do
+          if git fetch -q --depth 1 "$REMOTO" "mappe-$m" 2>/dev/null && git show FETCH_HEAD:punti_lazio.csv > "punti/$m.csv" 2>/dev/null; then
+            echo "$m: $(wc -l < punti/$m.csv) righe"
+          else
+            rm -f "punti/$m.csv"; echo "$m: ancora nessun punto"
+          fi
+        done
+
+    - name: Storico e calcolo della pagella
+      env:
+        TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      run: |
+        REMOTO="https://x-access-token:${TOKEN}@github.com/${{ github.repository }}.git"
+        RAMO="$RUNNER_TEMP/pagella"
+        mkdir -p "$RAMO"
+        if git fetch -q --depth 1 "$REMOTO" pagella 2>/dev/null; then
+          git archive FETCH_HEAD | tar -x -C "$RAMO"
+        fi
+        ARG=""
+        for f in punti/*.csv; do [ -e "$f" ] && ARG="$ARG $(basename "$f" .csv)=$f"; done
+        python -m motore.pagella --storico "$RAMO" --osservazioni osservazioni.csv --punti $ARG 2>&1 | tee registro.txt
+        sed 's/^/::notice::/' registro.txt | tail -6
+        cd "$RAMO"
+        git init -q -b pagella
+        git config user.name 'actions-user'
+        git config user.email 'actions@github.com'
+        git add -A
+        git commit -q -m "Pagella $(date -u '+%Y-%m-%d %H:%M UTC') [skip ci]"
+        git push -q -f "$REMOTO" pagella

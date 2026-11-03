@@ -34,6 +34,10 @@ def main(ramo, nuove):
             indice["aree"][area] = params
             indice["corse"][area] = parz["corsa"]
         indice.setdefault("diagnostica", {}).update(parz.get("diagnostica", {}))
+        # valori nei punti delle stazioni (per la pagella)
+        pu = os.path.join(cartella, "punti_lazio.csv")
+        if os.path.exists(pu):
+            shutil.copy(pu, os.path.join(ramo, "punti_lazio.csv"))
     # tengo solo le aree previste per il modello
     previste = set(MODELLI[indice["modello"]]["aree"])
     for area in list(indice["aree"]):
