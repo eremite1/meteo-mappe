@@ -24,7 +24,9 @@ def main(ramo, nuove):
         if not os.path.exists(pp):
             continue
         parz = json.load(open(pp))
-        for chiave in ("modello", "nome", "risoluzione"):
+        for chiave in ("modello", "nome", "risoluzione", "componenti", "pagella"):
+            if chiave not in parz:
+                continue
             indice[chiave] = parz[chiave]
         for area, params in parz["aree"].items():
             dest = os.path.join(ramo, area)
@@ -39,7 +41,7 @@ def main(ramo, nuove):
         if os.path.exists(pu):
             shutil.copy(pu, os.path.join(ramo, "punti_lazio.csv"))
     # tengo solo le aree previste per il modello
-    previste = set(MODELLI[indice["modello"]]["aree"])
+    previste = {"lazio"} if indice["modello"] == "multi" else set(MODELLI[indice["modello"]]["aree"])
     for area in list(indice["aree"]):
         if area not in previste:
             indice["aree"].pop(area)

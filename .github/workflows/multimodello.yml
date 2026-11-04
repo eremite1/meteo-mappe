@@ -1,0 +1,72 @@
+name: Multimodello Lazio
+
+# Media pesata di ICON-2I, AROME, ECMWF e UKMO sul Lazio: ogni modello pesa in base alla pagella.
+# Parte dopo ogni elaborazione delle mappe (se c'è almeno una corsa nuova) e comunque ogni 6 ore.
+on:
+  workflow_run:
+    workflows: ["Mappe meteo"]
+    types: [completed]
+  schedule:
+    - cron: '35 */6 * * *'
+  workflow_dispatch:
+    inputs:
+      forza:
+        description: 'Rielabora anche se le corse sono le stesse'
+        type: boolean
+        default: false
+
+permissions:
+  contents: write
+
+concurrency:
+  group: multimodello
+  cancel-in-progress: false
+
+jobs:
+  multi:
+    runs-on: ubuntu-latest
+    timeout-minutes: 150
+    steps:
+    - uses: actions/checkout@v4
+    - uses: actions/setup-python@v5
+      with:
+        python-version: '3.11'
+        cache: pip
+        cache-dependency-path: requirements-mappe.txt
+    - name: Installa
+      run: pip install -q -r requirements-mappe.txt
+    - name: Coste e confini (memorizzati tra un avvio e l'altro)
+      uses: actions/cache@v4
+      with:
+        path: ~/.local/share/cartopy
+        key: cartopy-naturalearth-v2
+    - name: Calcola il multimodello
+      env:
+        FORZA: ${{ github.event.inputs.forza || 'false' }}
+      run: |
+        set +e
+        python -m motore.multi 2>&1 | tee registro.txt
+        codice=${PIPESTATUS[0]}
+        if [ $codice -ne 0 ]; then
+          echo "::error::$(tail -c 3500 registro.txt | tr '\n' '|')"
+          exit $codice
+        fi
+        grep -E "corsa|Istanti|Mappe disegnate|Fine|niente da fare|ATTENZIONE" registro.txt | sed 's/^/::notice::/'
+    - name: Pubblica nel ramo mappe-multi
+      if: hashFiles('uscita/indice_parziale.json') != ''
+      env:
+        TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      run: |
+        REMOTO="https://x-access-token:${TOKEN}@github.com/${{ github.repository }}.git"
+        BASE="$PWD"
+        RAMO="$RUNNER_TEMP/ramo-multi"
+        rm -rf "$RAMO" && mkdir -p "$RAMO"
+        python -m motore.unisci "$RAMO" uscita
+        cd "$RAMO"
+        git init -q -b mappe-multi
+        git config user.name 'actions-user'
+        git config user.email 'actions@github.com'
+        git add -A
+        git commit -q -m "Multimodello $(date -u '+%Y-%m-%d %H:%M UTC') [skip ci]"
+        git push -q -f "$REMOTO" mappe-multi
+        echo "::notice::Pubblicato il multimodello: $(find . -name '*.png' | wc -l) mappe"
