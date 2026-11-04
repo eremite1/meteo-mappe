@@ -30,6 +30,16 @@ GIORNI_SERIE = 4           # giorni mostrati nei grafici delle stazioni
 STAZIONI_SERIE = 30        # grafici solo per le stazioni più vicine a Nerola (file leggero)
 NEROLA = (42.1606, 12.7856)
 FASCE = [(0, 12, "0-12 ore"), (12, 24, "12-24 ore"), (24, 48, "24-48 ore"), (48, 73, "48-72 ore")]
+FASCE_ITALIA = [(0, 12, "0-12 ore"), (12, 24, "12-24 ore"), (24, 48, "24-48 ore"), (48, 72, "48-72 ore"),
+                (72, 120, "72-120 ore"), (120, 169, "120-168 ore")]
+# oltre ai modelli: il multimodello (media pesata) e la media semplice, per vedere se i pesi servono
+EXTRA = {"multi": ("Multimodello", "media pesata"), "media": ("Media semplice", "pesi uguali")}
+
+
+def nome_ris(m):
+    if m in EXTRA:
+        return EXTRA[m]
+    return MODELLI[m]["nome"], MODELLI[m]["ris"]
 VARIABILI = ["T", "Td", "V", "P"]
 SOGLIA_PIOGGIA = 0.2       # mm: sotto questa soglia "non piove"
 
@@ -131,11 +141,12 @@ def dist_nerola(st):
 
 
 # ---------------------------------------------------------------------------
-def calcola(oss, stazioni, previsioni, giorni=GIORNI):
+def calcola(oss, stazioni, previsioni, giorni=GIORNI, fasce=FASCE, con_stazioni=True):
+    FASCE = fasce
     adesso = datetime.now(timezone.utc)
     limite = iso(adesso - timedelta(days=giorni))
     limite_serie = iso(adesso - timedelta(days=GIORNI_SERIE))
-    modelli = [m for m in MODELLI if previsioni.get(m)]
+    modelli = [m for m in list(MODELLI) + list(EXTRA) if previsioni.get(m)]
     riep = {m: {v: {f[2]: [] for f in FASCE} for v in VARIABILI} for m in modelli}
     per_staz = {}
     quota_mod = {}
@@ -208,11 +219,11 @@ def calcola(oss, stazioni, previsioni, giorni=GIORNI):
         "giorni": giorni,
         "fonte": "Osservazioni: aeroporti (METAR) e stazioni della Protezione Civile e di MeteoNetwork, raccolte dalla pagella di WRF Nerola",
         "pioggia_osservata": ha_pioggia,
-        "modelli": [{"id": m, "nome": MODELLI[m]["nome"], "ris": MODELLI[m]["ris"]} for m in modelli],
+        "modelli": [{"id": m, "nome": nome_ris(m)[0], "ris": nome_ris(m)[1]} for m in modelli],
         "fasce": [f[2] for f in FASCE],
         "riepilogo": riepilogo,
         "classifica": classifica,
-        "stazioni": elenco,
+        "stazioni": elenco if con_stazioni else [],
     }
 
 
@@ -220,7 +231,7 @@ def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--storico", required=True)
     ap.add_argument("--osservazioni", required=True)
-    ap.add_argument("--punti", nargs="*", default=[], help="modello=percorso di punti_lazio.csv")
+    ap.add_argument("--punti", nargs="*", default=[], help="chiave=percorso (chiave: modello, modello@italia, multi, media...)")
     a = ap.parse_args()
     storico = Path(a.storico)
     storico.mkdir(parents=True, exist_ok=True)
@@ -229,12 +240,18 @@ def main():
         if Path(p).exists() and Path(p).stat().st_size > 0:
             print(f"{m}: corse archiviate {archivia(storico, m, p)}")
     oss, stazioni = leggi_osservazioni(a.osservazioni)
-    pag = calcola(oss, stazioni, leggi_previsioni(storico, GIORNI))
+    prev = leggi_previsioni(storico, GIORNI)
+    # Lazio (griglia fine): chiavi senza suffisso · Italia (griglia nazionale, con ICON-EU): chiavi "<modello>@italia"
+    pag = calcola(oss, stazioni, {k: v for k, v in prev.items() if "@" not in k})
+    ita = calcola(oss, stazioni, {k.split("@")[0]: v for k, v in prev.items() if k.endswith("@italia")},
+                  fasce=FASCE_ITALIA, con_stazioni=False)
+    pag["italia"] = {k: ita[k] for k in ("modelli", "fasce", "riepilogo", "classifica")}
     (storico / "pagella.json").write_text(json.dumps(pag, ensure_ascii=False, separators=(",", ":")))
     for v, cl in pag["classifica"].items():
         if cl:
             print(f"{v}: " + ", ".join(f"{x['modello']} {x['mae']} (n={x['n']})" for x in cl))
-    print(f"pagella scritta: {len(pag['stazioni'])} stazioni, modelli {[m['id'] for m in pag['modelli']]}")
+    print(f"pagella scritta: {len(pag['stazioni'])} stazioni, modelli {[m['id'] for m in pag['modelli']]}, "
+          f"Italia {[m['id'] for m in pag['italia']['modelli']]}")
 
 
 if __name__ == "__main__":

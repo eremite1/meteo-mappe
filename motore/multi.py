@@ -1,13 +1,17 @@
 """
-Multimodello Lazio: media pesata di ICON-2I, AROME, ECMWF e UKMO.
+Multimodello: media pesata dei modelli su Lazio, Italia ed Europa.
+  Lazio:  ICON-2I, AROME, ECMWF, UKMO (pesi dalla pagella del Lazio)
+  Italia: ICON-2I, ECMWF, UKMO, ICON-EU (pesi dalla pagella "Italia", stazioni del centro Italia)
+  Europa: ECMWF, UKMO, ICON-EU (stessi pesi dell'Italia)
 
 Ogni modello pesa in base a quanto ha sbagliato di recente (pagella delle Mappe Lazio):
 peso = 1 / errore medio², calcolato per grandezza (temperatura, umidità, vento, pioggia)
 e per distanza dall'inizio della corsa (0-12, 12-24, 24-48, 48-72 ore).
 Dove un modello non copre il territorio (AROME a sud) la media si fa con gli altri.
 
-Uso: python -m motore.multi
-Scrive in uscita/ le mappe (lazio/<parametro>_hNNN.png) e indice_parziale.json, come genera.py.
+Uso: python -m motore.multi <area>
+Scrive in uscita/ le mappe (<area>/<parametro>_hNNN.png), indice_parziale.json e i valori nei punti
+delle stazioni (punti_<area>.csv media pesata, punti_<area>_uguali.csv media semplice, per la pagella).
 """
 import os
 import sys
@@ -24,10 +28,13 @@ import requests
 from . import genera as G
 from .catalogo import PARAMETRI, MODELLI
 
-AREA = "lazio"
-COMPONENTI = ["icon2i", "arome", "ecmwf", "ukmo"]
+AREE_MULTI = {
+    "lazio": dict(componenti=["icon2i", "arome", "ecmwf", "ukmo"], massimo=72, pagella="lazio"),
+    "italia": dict(componenti=["icon2i", "ecmwf", "ukmo", "iconeu"], massimo=168, pagella="italia"),
+    "europa": dict(componenti=["ecmwf", "ukmo", "iconeu"], massimo=168, pagella="italia"),
+}
+AREA = "lazio"       # area in elaborazione (impostata da esegui)
 PASSO = 3            # ore tra una mappa e l'altra
-MASSIMO = 72
 URL_PAGELLA = "https://raw.githubusercontent.com/eremite1/meteo-mappe/pagella/pagella.json"
 NOME = "Multimodello"
 
@@ -39,8 +46,10 @@ PESO_DA = {
     "pioggia": "P", "neve": "P",
     "nuvole": "G", "nuvole_basse": "G", "nuvole_medie": "G", "nuvole_alte": "G",
     "pressione": "G", "cape": "G", "quota_neve": "G",
+    "pioggia_isobare": "P", "z500_t500": "G",
 }
-FASCE = [(0, 12, "0-12 ore"), (12, 24, "12-24 ore"), (24, 48, "24-48 ore"), (48, 73, "48-72 ore")]
+FASCE = [(0, 12, "0-12 ore"), (12, 24, "12-24 ore"), (24, 48, "24-48 ore"), (48, 72, "48-72 ore"),
+         (72, 120, "72-120 ore"), (120, 169, "120-168 ore")]
 N_MINIMO = 30        # confronti minimi perché un errore della pagella sia considerato affidabile
 
 
@@ -65,7 +74,9 @@ def errore(pag, modello, var, ore):
     """Errore medio del modello per la grandezza e la fascia di ore (o None se pochi dati)."""
     if not pag:
         return None
-    r = (pag.get("riepilogo") or {}).get(modello, {}).get(var) or {}
+    # pagella del Lazio (sezione principale) oppure quella "italia" (griglia Italia, con ICON-EU)
+    sez = pag if _M.get("sezione", "lazio") == "lazio" else (pag.get("italia") or {})
+    r = (sez.get("riepilogo") or {}).get(modello, {}).get(var) or {}
     f = fascia_di(ore)
     s = r.get(f)
     if s and s.get("n", 0) >= N_MINIMO and s.get("mae"):
@@ -74,7 +85,7 @@ def errore(pag, modello, var, ore):
     nomi = [x[2] for x in FASCE]
     i = nomi.index(f)
     for d in range(1, len(nomi)):
-        for j in (i - d, i + d):
+        for j in (i - d, i + d):                      # (prima la fascia precedente, più ricca di dati)
             if 0 <= j < len(nomi):
                 s = r.get(nomi[j])
                 if s and s.get("n", 0) >= N_MINIMO and s.get("mae"):
@@ -120,6 +131,7 @@ def media(campi, w):
 
 # ---------------------------------------------------------------------------
 _M = {}
+PUNTI_DA = {"T": "temperatura", "Td": "rugiada", "V": "vento", "P": "pioggia"}
 
 
 def _avvia():
@@ -128,20 +140,46 @@ def _avvia():
     _M["dis"] = Disegnatore(AREA, la, lo, _M["ombra"])
 
 
+def _punti(t, h, medie):
+    """Valori della media pesata e della media semplice nei punti delle stazioni (per la pagella)."""
+    st = _M.get("stazioni") or []
+    if not st or AREA not in ("lazio", "italia") or "T" not in medie:
+        return []
+    iy = np.array([x[1] for x in st])
+    ix = np.array([x[2] for x in st])
+    corsa = _M["corsa"].strftime("%Y-%m-%dT%H:%MZ")
+    valido = t.strftime("%Y-%m-%dT%H:%MZ")
+    z = _M["terreno"]["z"][iy, ix] if (_M.get("terreno") is not None and AREA == "lazio") else None
+    righe = []
+    for tipo, chiave in (("pesata", AREA), ("uguali", AREA + "_uguali")):
+        val = {}
+        for v in ("T", "Td", "V", "P"):
+            c = medie.get(v, {}).get(tipo)
+            val[v] = None if c is None else c[iy, ix]
+        for n, (sid, _, _) in enumerate(st):
+            T = val["T"][n]
+            if not np.isfinite(T):
+                continue
+            fmt = lambda v, k=1: None if val[v] is None or not np.isfinite(val[v][n]) else round(float(val[v][n]), k)
+            righe.append([chiave, corsa, valido, h, PASSO, sid, round(float(T), 1), fmt("Td"), fmt("V"),
+                          fmt("P", 2) if h > 0 else None, None if z is None else round(float(z[n]))])
+    return righe
+
+
 def _fai(compito):
     t, h = compito
-    lavori, pag, ref = _M["lavori"], _M["pagella"], _M["corsa"]
+    lavori, pag = _M["lavori"], _M["pagella"]
     dis = _M["dis"]
     data, ora_utc = G.testo_ora(t)
     risultati, errori = [], []
-    ctx = {}
-    presenti = {}
+    ctx, presenti = {}, {}
     for m, L in lavori.items():
         if t in [x[2] for x in L.istanti(AREA)]:
             ctx[m] = G.Contesto(L, AREA, t)
             presenti[m] = int(round((t - L.corsa).total_seconds() / 3600))
     if len(ctx) < 2:
-        return risultati, errori
+        return risultati, errori, []
+    medie = {}            # grandezza della pagella -> {"pesata": campo, "uguali": campo}
     for p in PARAMETRI:
         if p["id"] not in PESO_DA or AREA not in p["aree"]:
             continue
@@ -171,6 +209,9 @@ def _fai(compito):
         w = pesi(pag, PESO_DA[p["id"]], {m: presenti[m] for m in campi})
         try:
             campo = media(campi, w)
+            for v, pid in PUNTI_DA.items():
+                if pid == p["id"]:
+                    medie[v] = {"pesata": campo, "uguali": media(campi, {m: 1.0 for m in campi})}
             contorni = None
             if cont:
                 wc = {m: w[m] for m in cont}
@@ -193,29 +234,42 @@ def _fai(compito):
             risultati.append((AREA, p["id"], nome, h, t.strftime("%Y-%m-%dT%H:%MZ"), {m: round(w[m], 3) for m in w}))
         except Exception as e:
             errori.append(f"multi/{p['id']}/+{h}h: {type(e).__name__}: {e}")
+    try:
+        righe = _punti(t, h, medie)
+    except Exception as e:
+        righe = []
+        errori.append(f"punti/+{h}h: {type(e).__name__}: {e}")
     for L in lavori.values():
         L.libera(t)
-    return risultati, errori
+    return risultati, errori, righe
 
 
-def esegui(processi=None):
+def esegui(area="lazio", processi=None):
+    global AREA
+    AREA = area
+    conf = AREE_MULTI[area]
+    massimo = conf["massimo"]
     t0 = time.time()
-    G.log(f"=== {NOME} Lazio ===")
+    G.log(f"=== {NOME} {area} ===")
     if os.path.exists(G.CARTELLA_DATI):
         shutil.rmtree(G.CARTELLA_DATI)
-    dem = G.carica_dem()
     griglia = G.griglia_area(AREA)
-    terreno = G.prepara_terreno(dem, *griglia) if dem is not None else None
+    terreno = None
+    if area == "lazio":
+        dem = G.carica_dem()
+        terreno = G.prepara_terreno(dem, *griglia) if dem is not None else None
 
     lavori = {}
-    for m in COMPONENTI:
+    for m in conf["componenti"]:
+        if AREA not in MODELLI[m]["aree"]:
+            continue
         try:
             L = G.Lavoro(m, [AREA])
         except Exception as e:
             G.avviso(f"{m}: escluso dal multimodello ({e})")
             continue
         # nel multimodello ogni modello si usa ogni 3 ore, con la pioggia delle 3 ore precedenti
-        L.cfg = dict(L.cfg, aree={AREA: (PASSO, MASSIMO)})
+        L.cfg = dict(L.cfg, aree={AREA: (PASSO, min(massimo, MODELLI[m]["aree"][AREA][1]))})
         L.passo[AREA] = PASSO
         L.terreno = terreno
         G.log(f"{m}: corsa {L.corsa:%Y-%m-%d %H} UTC, scarico i dati...")
@@ -231,15 +285,16 @@ def esegui(processi=None):
     compiti = []
     for t in tempi:
         h = int(round((t - ref).total_seconds() / 3600))
-        if 0 <= h <= MASSIMO and h % PASSO == 0:
+        if 0 <= h <= massimo and h % PASSO == 0:
             if sum(t in [x[2] for x in L.istanti(AREA)] for L in lavori.values()) >= 2:
                 compiti.append((t, h))
     if os.environ.get("MAX_ISTANTI"):
         compiti = compiti[:int(os.environ["MAX_ISTANTI"])]
     G.log(f"Istanti da elaborare: {len(compiti)} · modelli: {', '.join(lavori)}")
 
-    # scale delle temperature: quelle del modello più fine disponibile
-    for m in COMPONENTI:
+    # scale delle temperature: quelle del primo modello disponibile
+    scale = {}
+    for m in conf["componenti"]:
         if m in lavori:
             lavori[m].calcola_scale()
             scale = lavori[m].scale_corsa
@@ -250,53 +305,61 @@ def esegui(processi=None):
     os.makedirs(os.path.join(G.USCITA, AREA), exist_ok=True)
 
     pag = carica_pagella()
-    _M.update(lavori=lavori, pagella=pag, corsa=ref, griglia=griglia, scale=scale,
-              ombra=terreno["ombra"] if terreno is not None else None)
+    stazioni = G.carica_stazioni(*griglia) if AREA in ("lazio", "italia") else []
+    _M.update(lavori=lavori, pagella=pag, corsa=ref, griglia=griglia, scale=scale, sezione=conf["pagella"],
+              stazioni=stazioni, terreno=terreno, ombra=terreno["ombra"] if terreno is not None else None)
     _avvia()
-    tutti, errori = [], []
+    tutti, errori, punti = [], [], []
     nproc = processi or max(1, min(4, os.cpu_count() or 1))
     if nproc == 1:
         for c in compiti:
-            r, e = _fai(c)
+            r, e, pu = _fai(c)
             tutti += r
             errori += e
+            punti += pu
     else:
         with ProcessPoolExecutor(nproc, mp_context=mp.get_context("fork")) as ex:
-            for n, (r, e) in enumerate(ex.map(_fai, compiti)):
+            for n, (r, e, pu) in enumerate(ex.map(_fai, compiti)):
                 tutti += r
                 errori += e
+                punti += pu
                 if (n + 1) % 5 == 0:
                     G.log(f"  istanti completati: {n + 1}/{len(compiti)}")
     G.log(f"Mappe disegnate: {len(tutti)}")
     if errori:
-        G.avviso(f"[{NOME}] {len(errori)} mappe con errori, es.: " + " | ".join(errori[:4]))
+        G.avviso(f"[{NOME} {area}] {len(errori)} mappe con errori, es.: " + " | ".join(errori[:4]))
+    G.scrivi_punti(punti)
 
     corsa_txt = ref.strftime("%Y-%m-%dT%H:%MZ")
     indice = dict(modello="multi", nome=NOME, risoluzione="media pesata",
                   corsa=corsa_txt, corse={AREA: corsa_txt},
-                  componenti={m: L.corsa.strftime("%Y-%m-%dT%H:%MZ") for m, L in lavori.items()},
+                  componenti={AREA: {m: L.corsa.strftime("%Y-%m-%dT%H:%MZ") for m, L in lavori.items()}},
                   pagella=(pag or {}).get("aggiornato"),
                   aggiornato_utc=datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%MZ"), aree={})
-    for area, pid, nome, h, v, w in sorted(tutti, key=lambda x: (x[0], x[1], x[3])):
-        indice["aree"].setdefault(area, {}).setdefault(pid, []).append(
-            dict(file=f"{area}/{nome}", scadenza=h, valido_utc=v, pesi=w))
+    for a, pid, nome, h, v, w in sorted(tutti, key=lambda x: (x[0], x[1], x[3])):
+        indice["aree"].setdefault(a, {}).setdefault(pid, []).append(
+            dict(file=f"{a}/{nome}", scadenza=h, valido_utc=v, pesi=w))
     with open(os.path.join(G.USCITA, "indice_parziale.json"), "w") as f:
         json.dump(indice, f, separators=(",", ":"))
-    G.log(f"=== Fine {NOME}: {len(tutti)} mappe in {time.time() - t0:.0f} s ===")
+    G.log(f"=== Fine {NOME} {area}: {len(tutti)} mappe in {time.time() - t0:.0f} s ===")
     return len(tutti)
 
 
-def gia_fatto():
-    """True se il multimodello pubblicato usa già le corse più recenti di tutti i modelli."""
+def gia_fatto(area):
+    """True se il multimodello pubblicato per l'area usa già le corse più recenti di tutti i modelli."""
     from .controlla import corsa_disponibile
     try:
         r = requests.get("https://raw.githubusercontent.com/eremite1/meteo-mappe/mappe-multi/indice.json", timeout=30)
         if r.status_code != 200:
             return False
-        usate = r.json().get("componenti", {})
+        usate = (r.json().get("componenti") or {}).get(area) or {}
     except Exception:
         return False
-    for m in COMPONENTI:
+    if not usate:
+        return False
+    for m in AREE_MULTI[area]["componenti"]:
+        if area not in MODELLI[m]["aree"]:
+            continue
         c = corsa_disponibile(m)
         if c and c[:13] != (usate.get(m) or "")[:13]:
             return False
@@ -304,8 +367,9 @@ def gia_fatto():
 
 
 if __name__ == "__main__":
-    if os.environ.get("FORZA", "false").lower() != "true" and gia_fatto():
-        G.log("Multimodello già aggiornato con le ultime corse, niente da fare.")
+    area = sys.argv[1] if len(sys.argv) > 1 else "lazio"
+    if os.environ.get("FORZA", "false").lower() != "true" and gia_fatto(area):
+        G.log(f"Multimodello {area} già aggiornato con le ultime corse, niente da fare.")
         sys.exit(0)
-    if esegui() == 0:
+    if esegui(area) == 0:
         sys.exit(1)

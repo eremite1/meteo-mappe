@@ -5,7 +5,7 @@ name: Pagella Mappe Lazio
 # Risultato nel ramo "pagella": pagella.json (letto dal sito) e lo storico delle previsioni nei punti.
 on:
   workflow_run:
-    workflows: ["Mappe meteo"]
+    workflows: ["Mappe meteo", "Multimodello"]
     types: [completed]
   schedule:
     - cron: '50 */3 * * *'
@@ -34,17 +34,25 @@ jobs:
         curl -fsSL --retry 4 -o osservazioni.csv "https://raw.githubusercontent.com/eremite1/wrf-nerola/storico/osservazioni.csv"
         wc -l osservazioni.csv
 
-    - name: Previsioni nei punti delle stazioni (ultima corsa di ogni modello)
+    - name: Previsioni nei punti delle stazioni (ultima corsa di ogni modello e del multimodello)
       env:
         TOKEN: ${{ secrets.GITHUB_TOKEN }}
       run: |
         REMOTO="https://x-access-token:${TOKEN}@github.com/${{ github.repository }}.git"
         mkdir -p punti
-        for m in icon2i arome ecmwf ukmo iconeu; do
-          if git fetch -q --depth 1 "$REMOTO" "mappe-$m" 2>/dev/null && git show FETCH_HEAD:punti_lazio.csv > "punti/$m.csv" 2>/dev/null; then
-            echo "$m: $(wc -l < punti/$m.csv) righe"
+        prendi() {   # ramo, file nel ramo, chiave nello storico
+          if git show "FETCH_HEAD:$2" > "punti/$3.csv" 2>/dev/null; then echo "$3: $(wc -l < punti/$3.csv) righe"; else rm -f "punti/$3.csv"; fi
+        }
+        for m in icon2i arome ecmwf ukmo iconeu multi; do
+          git fetch -q --depth 1 "$REMOTO" "mappe-$m" 2>/dev/null || { echo "$m: ramo assente"; continue; }
+          if [ "$m" = multi ]; then
+            prendi mappe-multi punti_lazio.csv multi
+            prendi mappe-multi punti_lazio_uguali.csv media
+            prendi mappe-multi punti_italia.csv multi@italia
+            prendi mappe-multi punti_italia_uguali.csv media@italia
           else
-            rm -f "punti/$m.csv"; echo "$m: ancora nessun punto"
+            prendi mappe-$m punti_lazio.csv $m
+            prendi mappe-$m punti_italia.csv $m@italia
           fi
         done
 
@@ -60,6 +68,7 @@ jobs:
         fi
         ARG=""
         for f in punti/*.csv; do [ -e "$f" ] && ARG="$ARG $(basename "$f" .csv)=$f"; done
+        echo "file: $ARG"
         python -m motore.pagella --storico "$RAMO" --osservazioni osservazioni.csv --punti $ARG 2>&1 | tee registro.txt
         sed 's/^/::notice::/' registro.txt | tail -6
         cd "$RAMO"

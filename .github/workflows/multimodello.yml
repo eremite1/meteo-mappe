@@ -1,7 +1,7 @@
-name: Multimodello Lazio
+name: Multimodello
 
-# Media pesata di ICON-2I, AROME, ECMWF e UKMO sul Lazio: ogni modello pesa in base alla pagella.
-# Parte dopo ogni elaborazione delle mappe (se c'è almeno una corsa nuova) e comunque ogni 6 ore.
+# Media pesata dei modelli (pesi dalla pagella) su Lazio, Italia ed Europa: un lavoro per area, in parallelo.
+# Parte dopo ogni elaborazione delle mappe e comunque ogni 6 ore; un'area si rifà solo se c'è una corsa nuova.
 on:
   workflow_run:
     workflows: ["Mappe meteo"]
@@ -10,6 +10,10 @@ on:
     - cron: '35 */6 * * *'
   workflow_dispatch:
     inputs:
+      aree:
+        description: 'Aree da elaborare (es. lazio,italia,europa)'
+        default: 'lazio,italia,europa'
+        required: true
       forza:
         description: 'Rielabora anche se le corse sono le stesse'
         type: boolean
@@ -23,9 +27,24 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  multi:
+  prepara:
     runs-on: ubuntu-latest
-    timeout-minutes: 150
+    outputs:
+      aree: ${{ steps.a.outputs.aree }}
+    steps:
+    - id: a
+      run: |
+        A="${{ github.event.inputs.aree || 'lazio,italia,europa' }}"
+        echo "aree=$(echo "$A" | tr -d ' ' | python3 -c 'import sys,json; print(json.dumps([x for x in sys.stdin.read().strip().split(",") if x]))')" >> "$GITHUB_OUTPUT"
+
+  calcola:
+    needs: prepara
+    runs-on: ubuntu-latest
+    timeout-minutes: 180
+    strategy:
+      fail-fast: false
+      matrix:
+        area: ${{ fromJson(needs.prepara.outputs.aree) }}
     steps:
     - uses: actions/checkout@v4
     - uses: actions/setup-python@v5
@@ -45,27 +64,55 @@ jobs:
         FORZA: ${{ github.event.inputs.forza || 'false' }}
       run: |
         set +e
-        python -m motore.multi 2>&1 | tee registro.txt
+        python -m motore.multi ${{ matrix.area }} 2>&1 | tee registro.txt
         codice=${PIPESTATUS[0]}
         if [ $codice -ne 0 ]; then
           echo "::error::$(tail -c 3500 registro.txt | tr '\n' '|')"
           exit $codice
         fi
-        grep -E "corsa|Istanti|Mappe disegnate|Fine|niente da fare|ATTENZIONE" registro.txt | sed 's/^/::notice::/'
-    - name: Pubblica nel ramo mappe-multi
+        grep -E "corsa|Istanti|Mappe disegnate|Fine|niente da fare|Valori nei punti" registro.txt | sed 's/^/::notice::/'
+    - name: Consegna al passo di pubblicazione
       if: hashFiles('uscita/indice_parziale.json') != ''
+      uses: actions/upload-artifact@v4
+      with:
+        name: multi-${{ matrix.area }}
+        path: uscita/
+        retention-days: 1
+        compression-level: 0
+
+  pubblica:
+    needs: calcola
+    if: always()
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+    - uses: actions/checkout@v4
+    - uses: actions/setup-python@v5
+      with:
+        python-version: '3.11'
+    - run: pip install -q numpy matplotlib
+    - uses: actions/download-artifact@v4
+      with:
+        pattern: multi-*
+        path: artefatti
+    - name: Pubblica nel ramo mappe-multi
       env:
         TOKEN: ${{ secrets.GITHUB_TOKEN }}
       run: |
+        [ -d artefatti ] || { echo "Niente da pubblicare"; exit 0; }
         REMOTO="https://x-access-token:${TOKEN}@github.com/${{ github.repository }}.git"
         BASE="$PWD"
         RAMO="$RUNNER_TEMP/ramo-multi"
-        rm -rf "$RAMO" && mkdir -p "$RAMO"
-        python -m motore.unisci "$RAMO" uscita
-        cd "$RAMO"
+        rm -rf "$RAMO" && mkdir -p "$RAMO" && cd "$RAMO"
         git init -q -b mappe-multi
         git config user.name 'actions-user'
         git config user.email 'actions@github.com'
+        if git fetch -q --depth 1 "$REMOTO" mappe-multi 2>/dev/null; then
+          git archive FETCH_HEAD | tar -x
+        fi
+        cd "$BASE"
+        python -m motore.unisci "$RAMO" artefatti/multi-*
+        cd "$RAMO"
         git add -A
         git commit -q -m "Multimodello $(date -u '+%Y-%m-%d %H:%M UTC') [skip ci]"
         git push -q -f "$REMOTO" mappe-multi

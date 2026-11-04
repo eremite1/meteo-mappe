@@ -205,9 +205,9 @@ def carica_stazioni(lat, lon):
     return out
 
 
-def valori_punti(ctx, L, h):
-    """Righe della pagella per un istante dell'area Lazio (gli stessi valori mostrati sulle mappe)."""
-    punti = L.punti
+def valori_punti(ctx, L, h, area="lazio"):
+    """Righe della pagella per un istante (gli stessi valori mostrati sulle mappe dell'area)."""
+    punti = L.punti.get(area)
     if not punti:
         return []
     iy = np.array([p[1] for p in punti])
@@ -224,15 +224,29 @@ def valori_punti(ctx, L, h):
     Td = prendi(ctx.td2m)
     V = prendi(lambda: ctx.vel("10m"))
     P = prendi(lambda: ctx.acc("precipitation"), 2) if h > 0 else [None] * len(punti)
-    z = [round(float(x)) for x in L.terreno["z"][iy, ix]] if L.terreno is not None else [None] * len(punti)
+    z = [round(float(x)) for x in L.terreno["z"][iy, ix]] if (L.terreno is not None and area == "lazio") else [None] * len(punti)
     corsa = L.corsa.strftime("%Y-%m-%dT%H:%MZ")
     valido = ctx.t.strftime("%Y-%m-%dT%H:%MZ")
     righe = []
     for n, (sid, _, _) in enumerate(punti):
         if T[n] is None:
             continue                                  # fuori dal dominio del modello (es. AROME a sud)
-        righe.append([corsa, valido, h, L.passo["lazio"], sid, T[n], Td[n], V[n], P[n], z[n]])
+        righe.append([area, corsa, valido, h, L.passo[area], sid, T[n], Td[n], V[n], P[n], z[n]])
     return righe
+
+
+def scrivi_punti(punti, cartella=None):
+    """Un file per area: uscita/punti_<area>.csv (il primo campo di ogni riga è l'area)."""
+    import csv
+    per_area = {}
+    for r in punti:
+        per_area.setdefault(r[0], []).append(r[1:])
+    for a, rr in per_area.items():
+        with open(os.path.join(cartella or USCITA, f"punti_{a}.csv"), "w", newline="") as f:
+            w = csv.writer(f)
+            w.writerow(CAMPI_PUNTI)
+            w.writerows(sorted(rr, key=lambda r: (r[1], r[4])))
+        log(f"Valori nei punti delle stazioni ({a}): {len(rr)} righe")
 
 
 # ---------------------------------------------------------------------------
@@ -512,7 +526,7 @@ class Lavoro:
         self.segno_ascesa = 1.0
         self.scale_corsa = {}
         self.disponibili = {}          # (ds, area, t) -> percorso del file salvato
-        self.punti = []                # stazioni per la pagella (solo Lazio)
+        self.punti = {}                # area -> stazioni per la pagella (Lazio e Italia)
 
     # --- istanti da disegnare --------------------------------------------
     def istanti(self, area):
@@ -768,9 +782,9 @@ def _fai_istante(compito):
             except Exception as e:
                 if not isinstance(e, (Mancante, KeyError)):
                     errori.append(f"{area}/{p['id']}/+{h}h: {type(e).__name__}: {e}")
-        if area == "lazio":
+        if area in ("lazio", "italia"):
             try:
-                punti += valori_punti(ctx, L, h)
+                punti += valori_punti(ctx, L, h, area)
             except Exception as e:
                 errori.append(f"pagella/+{h}h: {type(e).__name__}: {e}")
         L.libera(t)
@@ -786,9 +800,10 @@ def esegui(chiave, max_istanti=None, processi=None, aree=None):
     if dem is not None and "lazio" in L.aree:
         L.terreno = prepara_terreno(dem, *L.griglie["lazio"])
 
-    if "lazio" in L.aree:
-        L.punti = carica_stazioni(*L.griglie["lazio"])
-        log(f"Stazioni per la pagella: {len(L.punti)}")
+    for a in ("lazio", "italia"):
+        if a in L.aree:
+            L.punti[a] = carica_stazioni(*L.griglie[a])
+            log(f"Stazioni per la pagella ({a}): {len(L.punti[a])}")
 
     log("Scarico i dati della corsa...")
     if os.path.exists(CARTELLA_DATI):
@@ -860,13 +875,7 @@ def esegui(chiave, max_istanti=None, processi=None, aree=None):
     except Exception as e:
         diag["errore"] = str(e)
 
-    if punti:
-        import csv
-        with open(os.path.join(USCITA, "punti_lazio.csv"), "w", newline="") as f:
-            w = csv.writer(f)
-            w.writerow(CAMPI_PUNTI)
-            w.writerows(sorted(punti, key=lambda r: (r[1], r[4])))
-        log(f"Valori nei punti delle stazioni: {len(punti)} righe")
+    scrivi_punti(punti)
 
     # indice
     corsa_txt = L.corsa.strftime("%Y-%m-%dT%H:%MZ")

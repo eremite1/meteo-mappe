@@ -24,10 +24,11 @@ def main(ramo, nuove):
         if not os.path.exists(pp):
             continue
         parz = json.load(open(pp))
-        for chiave in ("modello", "nome", "risoluzione", "componenti", "pagella"):
-            if chiave not in parz:
-                continue
-            indice[chiave] = parz[chiave]
+        for chiave in ("modello", "nome", "risoluzione", "pagella"):
+            if chiave in parz:
+                indice[chiave] = parz[chiave]
+        if "componenti" in parz:                       # multimodello: corse usate, area per area
+            indice.setdefault("componenti", {}).update(parz["componenti"])
         for area, params in parz["aree"].items():
             dest = os.path.join(ramo, area)
             if os.path.exists(dest):
@@ -37,11 +38,11 @@ def main(ramo, nuove):
             indice["corse"][area] = parz["corsa"]
         indice.setdefault("diagnostica", {}).update(parz.get("diagnostica", {}))
         # valori nei punti delle stazioni (per la pagella)
-        pu = os.path.join(cartella, "punti_lazio.csv")
-        if os.path.exists(pu):
-            shutil.copy(pu, os.path.join(ramo, "punti_lazio.csv"))
+        import glob
+        for pu in glob.glob(os.path.join(cartella, "punti_*.csv")):
+            shutil.copy(pu, os.path.join(ramo, os.path.basename(pu)))
     # tengo solo le aree previste per il modello
-    previste = {"lazio"} if indice["modello"] == "multi" else set(MODELLI[indice["modello"]]["aree"])
+    previste = {"lazio", "italia", "europa"} if indice["modello"] == "multi" else set(MODELLI[indice["modello"]]["aree"])
     for area in list(indice["aree"]):
         if area not in previste:
             indice["aree"].pop(area)
