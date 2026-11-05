@@ -367,11 +367,42 @@ P("evapotraspirazione", "Evapotraspirazione (ET0)", "Suolo e agricoltura",
        cmap=cm(["#f7fcb9", "#addd8e", "#41ab5d", "#006837", "#004529"], "et0"), extend="max"), LOC,
   lambda c: C.et0_oraria(c.t2m(), c.ur2m(), c.vel("10m"), c.v("shortwave_radiation"), c.quota_suolo()))
 
+# --- Cumulate di pioggia e grandine -------------------------------------------------
+P("pioggia_6h", "Pioggia in 6 ore", "Precipitazioni", "mm nelle 6 ore precedenti",
+  S_PIOGGIA_TOT, TUTTE, lambda c: c.acc("precipitation", ore=6))
+P("pioggia_12h", "Pioggia in 12 ore", "Precipitazioni", "mm nelle 12 ore precedenti",
+  S_PIOGGIA_TOT, TUTTE, lambda c: c.acc("precipitation", ore=12))
+P("pioggia_24h", "Pioggia in 24 ore", "Precipitazioni", "mm nelle 24 ore precedenti",
+  S_PIOGGIA_TOT, TUTTE, lambda c: c.acc("precipitation", ore=24))
+
+
+def _rapporto_mescolanza_max(c):
+    """g/kg della particella più umida tra il suolo e 850 hPa."""
+    r = C.rapporto_mescolanza(c.td_livello("850hPa"), 850.0) * 1000
+    try:
+        r = np.fmax(r, C.rapporto_mescolanza(c.td2m(), c.pressione_suolo()) * 1000)
+    except Exception:
+        pass
+    return r
+
+
+P("grandine", "Rischio grandine (SHIP)", "Temporali",
+  "Significant Hail Parameter · sopra 0,5: grandine possibile · sopra 1: grandine grossa (oltre 5 cm)",
+  dict(livelli=[0.1, 0.25, 0.5, 0.75, 1, 1.5, 2, 3, 4],
+       colori=["#fff3b0", "#ffd166", "#ffa94d", "#ff7043", "#e53935", "#c2185b", "#8e24aa", "#4a148c"],
+       extend="max", ombra=True), TUTTE,
+  lambda c: C.ship(c.v("cape", minimo=0), _rapporto_mescolanza_max(c),
+                   C.gradiente_verticale(c.v("temperature_700hPa"), c.v("temperature_500hPa"),
+                                         c.v("geopotential_height_700hPa"), c.v("geopotential_height_500hPa")),
+                   c.v("temperature_500hPa"), C.shear(*c.uv("10m"), *c.uv("500hPa")) / 3.6,
+                   c.zero_termico()))
+
 # --- Macrocategorie (ordine e raggruppamento sulla pagina) -------------------------
 CATEGORIA_DI = {
     "Temperatura": ["temperatura", "percepita", "humidex", "rugiada", "bulbo_umido", "umidita",
                     "inversione", "t925", "zero_termico", "quota_neve"],
-    "Precipitazioni": ["pioggia", "tipo_precipitazione", "pioggia_isobare", "pioggia_totale", "rovesci",
+    "Precipitazioni": ["pioggia", "tipo_precipitazione", "pioggia_isobare", "pioggia_6h", "pioggia_12h",
+                       "pioggia_24h", "pioggia_totale", "rovesci",
                        "neve", "neve_totale", "neve_suolo"],
     "Vento": ["vento", "raffiche", "vento_925", "vento_850", "vento_700", "vento_500", "getto"],
     "Nuvole e visibilità": ["nuvole", "nuvole_basse", "nuvole_medie", "nuvole_alte", "base_nubi",
@@ -379,7 +410,7 @@ CATEGORIA_DI = {
     "Pressione e quota": ["pressione", "z500_t500", "t850", "umidita_850", "umidita_700",
                           "moti_verticali", "theta_e_850", "gradiente_850_500", "acqua_precipitabile",
                           "strato_limite", "temperatura_mare"],
-    "Temporali": ["cape", "cin", "fulminazioni", "cape_shear", "instabilita_potenziale", "k_index",
+    "Temporali": ["grandine", "cape", "cin", "fulminazioni", "cape_shear", "instabilita_potenziale", "k_index",
                   "total_totals", "showalter", "lifted_index", "shear", "sweat"],
     "Suolo e agricoltura": ["gelate", "temperatura_suolo", "umidita_suolo", "evapotraspirazione", "incendi"],
 }

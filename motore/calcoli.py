@@ -263,3 +263,20 @@ def gradiente_verticale(t_basso, t_alto, z_basso, z_alto):
     """Diminuzione di temperatura con la quota (°C per km) tra due livelli."""
     dz = np.where(np.abs(z_alto - z_basso) < 1, np.nan, (z_alto - z_basso) / 1000.0)
     return (t_basso - t_alto) / dz
+
+
+def ship(cape, mr_gkg, gradiente_700_500, t500, shear_ms, zero_termico_m):
+    """Significant Hail Parameter (SHIP) del Storm Prediction Center (NOAA).
+    cape: J/kg · mr_gkg: rapporto di mescolanza della particella più umida (g/kg)
+    gradiente_700_500: °C/km · t500: °C · shear_ms: shear 0-6 km (m/s) · zero_termico_m: m.
+    Sopra 0,5 grandine possibile; sopra 1 grandine grossa (oltre 5 cm) favorita."""
+    cape = np.clip(np.nan_to_num(cape), 0, None)
+    mr = np.clip(mr_gkg, 11.0, 13.6)
+    lr = np.clip(gradiente_700_500, 0, None)
+    t5 = np.minimum(t500, -5.5)
+    sh = np.clip(shear_ms, 7.0, 27.0)
+    s = cape * mr * lr * (-t5) * sh / 42.0e6
+    s = s * np.where(cape < 1300, cape / 1300.0, 1.0)
+    s = s * np.where(lr < 5.8, lr / 5.8, 1.0)
+    s = s * np.where(zero_termico_m < 2400, np.clip(zero_termico_m, 0, None) / 2400.0, 1.0)
+    return np.clip(s, 0, None)

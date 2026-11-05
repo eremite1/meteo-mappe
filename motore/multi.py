@@ -47,6 +47,7 @@ PESO_DA = {
     "nuvole": "G", "nuvole_basse": "G", "nuvole_medie": "G", "nuvole_alte": "G",
     "pressione": "G", "cape": "G", "quota_neve": "G",
     "pioggia_isobare": "P", "z500_t500": "G",
+    "pioggia_6h": "P", "pioggia_12h": "P", "pioggia_24h": "P", "grandine": "G",
 }
 FASCE = [(0, 12, "0-12 ore"), (12, 24, "12-24 ore"), (24, 48, "24-48 ore"), (48, 72, "48-72 ore"),
          (72, 120, "72-120 ore"), (120, 169, "120-168 ore")]

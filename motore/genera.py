@@ -397,18 +397,25 @@ class Contesto:
         raise Mancante("vento in quota")
 
     # --- accumuli --------------------------------------------------------
-    def acc(self, nome, totale=False):
+    def acc(self, nome, totale=False, ore=None):
+        """Accumulo: nelle ore del passo (normale), in 'ore' ore precedenti, o dall'inizio (totale)."""
         ds, cum, tempi = self.L.cumulata(self.area, nome)
         t = self.t
         if t <= self.L.corsa:
             raise Mancante(nome)                     # all'istante iniziale non c'è accumulo
         if t not in tempi:
             raise Mancante(nome)
+        if ore is not None:
+            trascorse = (t - self.L.corsa).total_seconds() / 3600
+            if trascorse < ore - 0.01 or ore < self.L.passo[self.area]:
+                raise Mancante(nome)                 # finestra non ancora completa
+            if round(trascorse) % 3:
+                raise Mancante(nome)                 # cumulate lunghe: una mappa ogni 3 ore
         i = tempi.index(t)
         if totale:
             val = cum[i]
         else:
-            passo = self.L.passo[self.area]
+            passo = ore if ore is not None else self.L.passo[self.area]
             t0 = t - timedelta(hours=passo)
             j = max([n for n, tt in enumerate(tempi) if tt <= t0], default=None)
             val = cum[i] - (cum[j] if j is not None else 0)
