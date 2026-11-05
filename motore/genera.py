@@ -185,11 +185,12 @@ def carica_stazioni(lat, lon):
     try:
         r = requests.get(URL_STAZIONI, timeout=60)
         r.raise_for_status()
+        testo = r.text
     except Exception as e:
         avviso(f"elenco stazioni per la pagella non disponibile: {e}")
-        return []
+        testo = "id,lat,lon\n"
     viste, out = set(), []
-    for riga in csv.DictReader(io.StringIO(r.text)):
+    for riga in csv.DictReader(io.StringIO(testo)):
         if riga["id"] in viste:
             continue
         viste.add(riga["id"])
@@ -202,6 +203,13 @@ def carica_stazioni(lat, lon):
         iy = int(round((la - lat[0]) / (lat[1] - lat[0])))
         ix = int(round((lo - lon[0]) / (lon[1] - lon[0])))
         out.append((riga["id"], iy, ix))
+    # il radar come pluviometri virtuali: 192 punti fissi sul Lazio (gli stessi di nowcasting-nerola/radar_punti.py),
+    # per confrontare la pioggia prevista con quella vista dal radar anche dove non ci sono stazioni
+    for la in np.round(np.arange(41.25, 42.9001, 0.15), 2):
+        for lo in np.round(np.arange(11.70, 13.9501, 0.15), 2):
+            if lat[1] <= la <= lat[-2] and lon[1] <= lo <= lon[-2]:
+                out.append((f"R{la * 100:04.0f}_{lo * 100:04.0f}", int(round((la - lat[0]) / (lat[1] - lat[0]))),
+                            int(round((lo - lon[0]) / (lon[1] - lon[0])))))
     return out
 
 

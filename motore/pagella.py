@@ -33,7 +33,8 @@ FASCE = [(0, 12, "0-12 ore"), (12, 24, "12-24 ore"), (24, 48, "24-48 ore"), (48,
 FASCE_ITALIA = [(0, 12, "0-12 ore"), (12, 24, "12-24 ore"), (24, 48, "24-48 ore"), (48, 72, "48-72 ore"),
                 (72, 120, "72-120 ore"), (120, 169, "120-168 ore")]
 # oltre ai modelli: il multimodello (media pesata) e la media semplice, per vedere se i pesi servono
-EXTRA = {"multi": ("Multimodello", "media pesata"), "media": ("Media semplice", "pesi uguali")}
+EXTRA = {"multi": ("Multimodello", "media pesata"), "media": ("Media semplice", "pesi uguali"),
+         "wrf": ("WRF Nerola", "corsa ECMWF")}   # entra solo nel confronto con il radar (punti del nowcasting)
 
 
 def nome_ris(m):
@@ -133,7 +134,18 @@ def statistiche(coppie, pioggia=False):
     if pioggia:
         # quante volte ha azzeccato "piove / non piove"
         s["azzecca"] = round(float(np.mean((p >= SOGLIA_PIOGGIA) == (o >= SOGLIA_PIOGGIA))) * 100, 1)
+        # indice di successo: su 100 casi in cui pioveva nella previsione o nella realta', quanti erano giusti
+        # (non conta le ore asciutte, che sono la maggior parte e "gonfiano" la percentuale qui sopra)
+        pp, oo = p >= SOGLIA_PIOGGIA, o >= SOGLIA_PIOGGIA
+        tot = int((pp | oo).sum())
+        if tot >= 5:
+            s["csi"] = round(float((pp & oo).sum()) / tot * 100, 1)
+            s["casi_pioggia"] = tot
     return s
+
+
+def _coppie_p(pag, m, fascia):
+    return pag.get("_coppie", {}).get(m, {}).get(fascia, [])
 
 
 def dist_nerola(st):
@@ -178,6 +190,7 @@ def calcola(oss, stazioni, previsioni, giorni=GIORNI, fasce=FASCE, con_stazioni=
                     per_staz.setdefault(sid, {}).setdefault(m, {}).setdefault(v, []).append((p, o))
 
     riepilogo = {m: {v: {f: statistiche(c, v == "P") for f, c in ff.items()} for v, ff in vv.items()} for m, vv in riep.items()}
+    coppie_p = {m: {f: c for f, c in vv["P"].items()} for m, vv in riep.items()}
     # classifica: errore medio nelle prime 48 ore, per variabile
     classifica = {}
     for v in VARIABILI:
@@ -224,6 +237,7 @@ def calcola(oss, stazioni, previsioni, giorni=GIORNI, fasce=FASCE, con_stazioni=
         "riepilogo": riepilogo,
         "classifica": classifica,
         "stazioni": elenco if con_stazioni else [],
+        "_coppie": coppie_p,
     }
 
 
@@ -232,6 +246,7 @@ def main():
     ap.add_argument("--storico", required=True)
     ap.add_argument("--osservazioni", required=True)
     ap.add_argument("--punti", nargs="*", default=[], help="chiave=percorso (chiave: modello, modello@italia, multi, media...)")
+    ap.add_argument("--radar", default="", help="radar_punti.csv del nowcasting: il radar come pluviometri virtuali")
     a = ap.parse_args()
     storico = Path(a.storico)
     storico.mkdir(parents=True, exist_ok=True)
@@ -242,10 +257,25 @@ def main():
     oss, stazioni = leggi_osservazioni(a.osservazioni)
     prev = leggi_previsioni(storico, GIORNI)
     # Lazio (griglia fine): chiavi senza suffisso · Italia (griglia nazionale, con ICON-EU): chiavi "<modello>@italia"
-    pag = calcola(oss, stazioni, {k: v for k, v in prev.items() if "@" not in k})
+    pag = calcola(oss, stazioni, {k: v for k, v in prev.items() if "@" not in k and k != "wrf"})
     ita = calcola(oss, stazioni, {k.split("@")[0]: v for k, v in prev.items() if k.endswith("@italia")},
                   fasce=FASCE_ITALIA, con_stazioni=False)
     pag["italia"] = {k: ita[k] for k in ("modelli", "fasce", "riepilogo", "classifica")}
+    pag.pop("_coppie", None)
+    # pioggia contro il radar: i 192 punti del nowcasting come pluviometri (tutti i modelli del Lazio + WRF Nerola)
+    if a.radar and Path(a.radar).exists() and Path(a.radar).stat().st_size > 100:
+        oss_r, staz_r = leggi_osservazioni(a.radar)
+        rad = calcola(oss_r, staz_r, {k: v for k, v in prev.items() if "@" not in k}, con_stazioni=False)
+        voci = []
+        for mod in [x["id"] for x in rad["modelli"]]:
+            st_ = statistiche([c for f in FASCE[:3] for c in _coppie_p(rad, mod, f[2])], True)
+            if st_ and st_.get("csi") is not None and st_["n"] >= 20:
+                voci.append(dict(st_, modello=mod))
+        rad["classifica"] = {"P": sorted(voci, key=lambda x: -x["csi"])}   # chi prende piu' piogge
+        rad.pop("_coppie", None)
+        pag["radar"] = {k: rad[k] for k in ("modelli", "fasce", "riepilogo", "classifica")}
+        pag["radar"]["punti"] = len(staz_r)
+        print("radar: " + ", ".join(f"{x['modello']} {x['csi']}%" for x in rad["classifica"]["P"]))
     (storico / "pagella.json").write_text(json.dumps(pag, ensure_ascii=False, separators=(",", ":")))
     for v, cl in pag["classifica"].items():
         if cl:
