@@ -8,7 +8,7 @@ on:
     workflows: ["Mappe meteo", "Multimodello"]
     types: [completed]
   schedule:
-    - cron: '50 */3 * * *'
+    - cron: '41 * * * *'   # ogni ora (GitHub a volte salta gli avvii a orario)
   workflow_dispatch:
 
 permissions:
