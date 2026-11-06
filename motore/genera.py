@@ -892,6 +892,19 @@ def esegui(chiave, max_istanti=None, processi=None, aree=None):
 
     scrivi_punti(punti)
 
+    # pioggia cumulata sulla griglia comune del Lazio, per la pagella unica contro il radar (motore/verifica.py)
+    try:
+        if "lazio" in L.aree:
+            from . import verifica as V
+            ds = L.fonti["lazio"][0]
+            if (ds, "lazio", "precipitation") in L._cum:
+                cum, tempi = L._cum[(ds, "lazio", "precipitation")]
+                la, lo = L.coord_cum[(ds, "lazio")]
+                V.salva_griglia(os.path.join(USCITA, "griglia_lazio.npz"), L.corsa, tempi, V.su_griglia(la, lo, cum))
+                log("Pioggia sulla griglia comune salvata (pagella unica)")
+    except Exception as e:
+        avviso(f"griglia comune per la pagella non salvata: {e}")
+
     # indice
     corsa_txt = L.corsa.strftime("%Y-%m-%dT%H:%MZ")
     indice = dict(modello=chiave, nome=L.cfg["nome"], risoluzione=L.cfg["ris"],

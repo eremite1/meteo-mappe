@@ -34,13 +34,15 @@ FASCE_ITALIA = [(0, 12, "0-12 ore"), (12, 24, "12-24 ore"), (24, 48, "24-48 ore"
                 (72, 120, "72-120 ore"), (120, 169, "120-168 ore")]
 # oltre ai modelli: il multimodello (media pesata) e la media semplice, per vedere se i pesi servono
 EXTRA = {"multi": ("Multimodello", "media pesata"), "media": ("Media semplice", "pesi uguali"),
-         "wrf": ("WRF Nerola", "corsa ECMWF")}   # entra solo nel confronto con il radar (punti del nowcasting)
+         "wrf3km": ("WRF Nerola 3 km", "3 km"), "wrf1km": ("WRF Nerola 1 km", "1 km")}
 
 
 def nome_ris(m):
     if m in EXTRA:
         return EXTRA[m]
-    return MODELLI[m]["nome"], MODELLI[m]["ris"]
+    if m in MODELLI:
+        return MODELLI[m]["nome"], MODELLI[m]["ris"]
+    return m, ""          # modello nuovo non ancora in elenco: entra comunque, con la sua sigla
 VARIABILI = ["T", "Td", "V", "P"]
 SOGLIA_PIOGGIA = 0.2       # mm: sotto questa soglia "non piove"
 
@@ -256,8 +258,9 @@ def main():
             print(f"{m}: corse archiviate {archivia(storico, m, p)}")
     oss, stazioni = leggi_osservazioni(a.osservazioni)
     prev = leggi_previsioni(storico, GIORNI)
+    prev.pop("wrf", None)          # vecchio nome: ora WRF Nerola entra come wrf3km e wrf1km
     # Lazio (griglia fine): chiavi senza suffisso · Italia (griglia nazionale, con ICON-EU): chiavi "<modello>@italia"
-    pag = calcola(oss, stazioni, {k: v for k, v in prev.items() if "@" not in k and k != "wrf"})
+    pag = calcola(oss, stazioni, {k: v for k, v in prev.items() if "@" not in k})
     ita = calcola(oss, stazioni, {k.split("@")[0]: v for k, v in prev.items() if k.endswith("@italia")},
                   fasce=FASCE_ITALIA, con_stazioni=False)
     pag["italia"] = {k: ita[k] for k in ("modelli", "fasce", "riepilogo", "classifica")}

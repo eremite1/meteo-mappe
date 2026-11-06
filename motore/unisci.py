@@ -39,7 +39,7 @@ def main(ramo, nuove):
         indice.setdefault("diagnostica", {}).update(parz.get("diagnostica", {}))
         # valori nei punti delle stazioni (per la pagella)
         import glob
-        for pu in glob.glob(os.path.join(cartella, "punti_*.csv")):
+        for pu in glob.glob(os.path.join(cartella, "punti_*.csv")) + glob.glob(os.path.join(cartella, "griglia_*.npz")):
             shutil.copy(pu, os.path.join(ramo, os.path.basename(pu)))
     # tengo solo le aree previste per il modello
     previste = {"lazio", "italia", "europa"} if indice["modello"] == "multi" else set(MODELLI[indice["modello"]]["aree"])

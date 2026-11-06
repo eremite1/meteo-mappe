@@ -27,7 +27,7 @@ jobs:
     - uses: actions/setup-python@v5
       with:
         python-version: '3.11'
-    - run: pip install -q numpy requests matplotlib
+    - run: pip install -q numpy requests matplotlib scipy
 
     - name: Osservazioni delle stazioni (raccolte dalla pagella di WRF Nerola)
       run: |
@@ -39,8 +39,31 @@ jobs:
         mkdir -p punti
         curl -fsSL --retry 4 -o radar_punti.csv "https://raw.githubusercontent.com/eremite1/nowcasting-nerola/risultati/radar_punti.csv" \
           && wc -l radar_punti.csv || { echo "radar nei punti non ancora disponibile"; rm -f radar_punti.csv; }
-        curl -fsSL --retry 4 -o punti/wrf.csv "https://raw.githubusercontent.com/eremite1/nowcasting-nerola/risultati/wrf_punti.csv" \
-          && wc -l punti/wrf.csv || { echo "WRF nei punti non ancora disponibile"; rm -f punti/wrf.csv; }
+        curl -fsSL --retry 4 -o radar_orario.npz "https://raw.githubusercontent.com/eremite1/nowcasting-nerola/risultati/radar_orario.npz" \
+          || { echo "radar orario non ancora disponibile"; rm -f radar_orario.npz; }
+
+    - name: WRF Nerola (3 km e 1 km), ultima corsa pubblicata
+      run: |
+        mkdir -p wrf
+        for d in d01 d02; do
+          curl -fsSL --retry 4 -o wrf/${d}_tutto.npz "https://raw.githubusercontent.com/eremite1/wrf-nerola/risultati/${d}_tutto.npz" \
+            || { echo "WRF $d non disponibile"; rm -f wrf/${d}_tutto.npz; }
+        done
+        ls -la wrf
+        if [ -f wrf/d01_tutto.npz ]; then
+          python - <<'PY'
+        import csv
+        from motore import verifica as V
+        st = {}
+        for r in csv.DictReader(open("osservazioni.csv", newline="", encoding="utf-8")):
+            st[r["id"]] = (r["id"], float(r["lat"]), float(r["lon"]))
+        if __import__("os").path.exists("radar_punti.csv"):
+            for r in csv.DictReader(open("radar_punti.csv", newline="")):
+                st.setdefault(r["id"], (r["id"], float(r["lat"]), float(r["lon"])))
+        out = V.wrf_punti("wrf/d01_tutto.npz", "wrf/d02_tutto.npz", list(st.values()), "punti")
+        print("WRF nei punti:", {k: str(v) for k, v in out.items()})
+        PY
+        fi
 
     - name: Previsioni nei punti delle stazioni (ultima corsa di ogni modello e del multimodello)
       env:
@@ -51,8 +74,12 @@ jobs:
         prendi() {   # ramo, file nel ramo, chiave nello storico
           if git show "FETCH_HEAD:$2" > "punti/$3.csv" 2>/dev/null; then echo "$3: $(wc -l < punti/$3.csv) righe"; else rm -f "punti/$3.csv"; fi
         }
-        for m in icon2i arome ecmwf ukmo iconeu multi; do
+        # tutti i modelli delle Mappe Lazio (ogni ramo mappe-*): un modello nuovo entra da solo
+        MODELLI=$(git ls-remote --heads "$REMOTO" 'mappe-*' | sed 's|.*refs/heads/mappe-||' | tr '\n' ' ')
+        echo "modelli trovati: $MODELLI"
+        for m in $MODELLI; do
           git fetch -q --depth 1 "$REMOTO" "mappe-$m" 2>/dev/null || { echo "$m: ramo assente"; continue; }
+          git show "FETCH_HEAD:griglia_lazio.npz" > "griglie_$m.npz" 2>/dev/null || rm -f "griglie_$m.npz"
           if [ "$m" = multi ]; then
             prendi mappe-multi punti_lazio.csv multi
             prendi mappe-multi punti_lazio_uguali.csv media
@@ -80,6 +107,11 @@ jobs:
         RADAR=""; [ -f radar_punti.csv ] && RADAR="--radar radar_punti.csv"
         python -m motore.pagella --storico "$RAMO" --osservazioni osservazioni.csv --punti $ARG $RADAR 2>&1 | tee registro.txt
         sed 's/^/::notice::/' registro.txt | tail -6
+        # pagella unica: mappe di pioggia di tutti i modelli contro il radar, piu' il riepilogo per la pagina
+        G=""; for f in griglie_*.npz; do [ -e "$f" ] && G="$G $(basename "$f" .npz | sed 's/^griglie_//')=$f"; done
+        W=""; [ -f wrf/d01_tutto.npz ] && W="--wrf wrf/d01_tutto.npz wrf/d02_tutto.npz"
+        R=""; [ -f radar_orario.npz ] && R="--radar radar_orario.npz"
+        python -m motore.verifica --storico "$RAMO" $R --griglie $G $W 2>&1 | tee -a registro.txt
         cd "$RAMO"
         git init -q -b pagella
         git config user.name 'actions-user'
