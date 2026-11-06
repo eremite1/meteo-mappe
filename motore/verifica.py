@@ -59,8 +59,10 @@ def su_griglia(lat, lon, valori, massima_km=None):
     """Valori (nx o 2D) dal reticolo del modello alla griglia comune: punto piu' vicino; fuori copertura = NaN."""
     from scipy.spatial import cKDTree
     lat, lon = np.asarray(lat, dtype="float64"), np.asarray(lon, dtype="float64")
-    if lat.ndim == 1 and lon.ndim == 1:
-        lon, lat = np.meshgrid(lon, lat)
+    n_val = np.asarray(valori[0]).size if len(valori) else 0
+    if lat.ndim == 1 and lon.ndim == 1 and not (lat.size == lon.size == n_val):
+        lon, lat = np.meshgrid(lon, lat)          # assi di una griglia regolare
+    # altrimenti: elenco di punti sparsi (griglie ridotte), stesso numero dei valori
     c = math.cos(math.radians(42.1))
     albero = cKDTree(np.c_[lon.ravel() * c, lat.ravel()])
     GX, GY = np.meshgrid(LONS * c, LATS)
