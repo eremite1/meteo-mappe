@@ -34,7 +34,7 @@ MODELLI = {
                  aree={"lazio": (3, 72), "italia": (3, 168), "europa": (3, 168)}),
     "gfs": dict(nome="GFS", ris="13 km", sigma=18, min_ore=90,
                 fonti={"lazio": ["ncep_gfs013", "ncep_gfs025"], "italia": ["ncep_gfs013", "ncep_gfs025"],
-                       "europa": ["ncep_gfs025"]},
+                       "europa": ["ncep_gfs013", "ncep_gfs025"]},
                 aree={"lazio": (3, 72), "italia": (3, 168), "europa": (3, 168)}),
     "iconeu": dict(nome="ICON-EU", ris="7 km", sigma=10, min_ore=90,
                    fonti={"*": ["dwd_icon_eu"]},
