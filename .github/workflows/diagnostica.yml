@@ -1,0 +1,54 @@
+name: Diagnostica fonti dati
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  prova:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+    - run: pip install -q requests xarray netCDF4 pydap
+    - name: Prove
+      shell: python
+      run: |
+        import requests, re, json
+        def g(u, n=600, **k):
+            try:
+                r = requests.get(u, timeout=40, **k)
+                print("==", u, r.status_code, len(r.content)); print(r.text[:n].replace("\n"," | "))
+            except Exception as e:
+                print("==", u, "ERR", e)
+        r = requests.get("https://openmeteo.s3.amazonaws.com/", params={"list-type":"2","prefix":"data_spatial/","delimiter":"/"}, timeout=40)
+        print("DATASETS:", re.findall(r"<Prefix>data_spatial/([^<]+)/</Prefix>", r.text))
+        for d in ["ncep_gfs025","ncep_gfs013","ncep_gfs_graphcast025","ecmwf_aifs025_single","ncep_aigfs025"]:
+            g(f"https://openmeteo.s3.amazonaws.com/data_spatial/{d}/latest.json", 900)
+        g("https://meteohub.agenziaitaliameteo.it/api/datasets", 3000)
+        g("https://meteohub.agenziaitaliameteo.it/api/datasets/ICON-2I_SURFACE_PRESSURE_LEVELS/opendata", 3000)
+        g("https://meteohub.agenziaitaliameteo.it/api/opendata", 3000)
+        g("https://meteohub.mistralportal.it/api/datasets", 1500)
+        g("https://nomads.ncep.noaa.gov/pub/data/nccf/com/gfs/prod/", 800)
+        g("https://noaa-gfs-bdp-pds.s3.amazonaws.com/?list-type=2&prefix=gfs.20261108/00/atmos/&max-keys=5", 900)
+        for u in ["https://www.cpc.ncep.noaa.gov/products/precip/CWlink/pna/norm.nao.monthly.b5001.current.ascii",
+                  "https://www.cpc.ncep.noaa.gov/products/precip/CWlink/daily_ao_index/monthly.ao.index.b50.current.ascii",
+                  "https://www.cpc.ncep.noaa.gov/data/teledoc/telecontents.shtml",
+                  "https://ftp.cpc.ncep.noaa.gov/wd52dg/data/indices/tele_index.nh",
+                  "https://www.cpc.ncep.noaa.gov/data/indices/oni.ascii.txt",
+                  "https://www.cpc.ncep.noaa.gov/data/indices/qbo.u30.index",
+                  "https://psl.noaa.gov/data/correlation/qbo.data",
+                  "https://psl.noaa.gov/data/correlation/nina34.anom.data",
+                  "https://www.cpc.ncep.noaa.gov/products/precip/CWlink/pna/nao.gefs.z500.120days.csv",
+                  "https://ftp.cpc.ncep.noaa.gov/cwlinks/norm.daily.nao.cdas.z500.19500101_current.csv",
+                  "https://iri.columbia.edu/~forecast/ensofcst/Data/archive/ensofcst_cpc_ALL",
+                  "https://psl.noaa.gov/thredds/dodsC/Datasets/ncep.reanalysis/Monthlies/pressure/uwnd.mon.mean.nc.dds",
+                  "https://psl.noaa.gov/thredds/dodsC/Datasets/ncep.reanalysis/Monthlies/surface_gauss/air.2m.mon.mean.nc.dds",
+                  "https://downloads.psl.noaa.gov/Datasets/ncep.reanalysis/Monthlies/surface_gauss/",
+                  "https://www.isac.cnr.it/dinamica/projects/forecast_dpc/moloch_en.htm",
+                  "https://www.cpc.ncep.noaa.gov/products/stratosphere/polar/polar.shtml"]:
+            g(u, 500)
+        import xarray as xr
+        try:
+            ds = xr.open_dataset("https://psl.noaa.gov/thredds/dodsC/Datasets/ncep.reanalysis/Monthlies/pressure/uwnd.mon.mean.nc")
+            print(ds); print(ds.uwnd.sel(level=10, lat=60).mean("lon")[-3:].values)
+        except Exception as e:
+            print("OPENDAP ERR", e)
