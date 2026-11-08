@@ -12,43 +12,32 @@ jobs:
     - name: Prove
       shell: python
       run: |
-        import requests, re, json
-        def g(u, n=600, **k):
-            try:
-                r = requests.get(u, timeout=40, **k)
-                print("==", u, r.status_code, len(r.content)); print(r.text[:n].replace("\n"," | "))
-            except Exception as e:
-                print("==", u, "ERR", e)
-        r = requests.get("https://openmeteo.s3.amazonaws.com/", params={"list-type":"2","prefix":"data_spatial/","delimiter":"/"}, timeout=40)
-        print("DATASETS:", re.findall(r"<Prefix>data_spatial/([^<]+)/</Prefix>", r.text))
-        for d in ["ncep_gfs025","ncep_gfs013","ncep_gfs_graphcast025","ecmwf_aifs025_single","ncep_aigfs025"]:
-            g(f"https://openmeteo.s3.amazonaws.com/data_spatial/{d}/latest.json", 900)
-        g("https://meteohub.agenziaitaliameteo.it/api/datasets", 3000)
-        g("https://meteohub.agenziaitaliameteo.it/api/datasets/ICON-2I_SURFACE_PRESSURE_LEVELS/opendata", 3000)
-        g("https://meteohub.agenziaitaliameteo.it/api/opendata", 3000)
-        g("https://meteohub.mistralportal.it/api/datasets", 1500)
-        g("https://nomads.ncep.noaa.gov/pub/data/nccf/com/gfs/prod/", 800)
-        g("https://noaa-gfs-bdp-pds.s3.amazonaws.com/?list-type=2&prefix=gfs.20261108/00/atmos/&max-keys=5", 900)
-        for u in ["https://www.cpc.ncep.noaa.gov/products/precip/CWlink/pna/norm.nao.monthly.b5001.current.ascii",
-                  "https://www.cpc.ncep.noaa.gov/products/precip/CWlink/daily_ao_index/monthly.ao.index.b50.current.ascii",
-                  "https://www.cpc.ncep.noaa.gov/data/teledoc/telecontents.shtml",
-                  "https://ftp.cpc.ncep.noaa.gov/wd52dg/data/indices/tele_index.nh",
-                  "https://www.cpc.ncep.noaa.gov/data/indices/oni.ascii.txt",
-                  "https://www.cpc.ncep.noaa.gov/data/indices/qbo.u30.index",
-                  "https://psl.noaa.gov/data/correlation/qbo.data",
-                  "https://psl.noaa.gov/data/correlation/nina34.anom.data",
-                  "https://www.cpc.ncep.noaa.gov/products/precip/CWlink/pna/nao.gefs.z500.120days.csv",
-                  "https://ftp.cpc.ncep.noaa.gov/cwlinks/norm.daily.nao.cdas.z500.19500101_current.csv",
-                  "https://iri.columbia.edu/~forecast/ensofcst/Data/archive/ensofcst_cpc_ALL",
-                  "https://psl.noaa.gov/thredds/dodsC/Datasets/ncep.reanalysis/Monthlies/pressure/uwnd.mon.mean.nc.dds",
-                  "https://psl.noaa.gov/thredds/dodsC/Datasets/ncep.reanalysis/Monthlies/surface_gauss/air.2m.mon.mean.nc.dds",
-                  "https://downloads.psl.noaa.gov/Datasets/ncep.reanalysis/Monthlies/surface_gauss/",
-                  "https://www.isac.cnr.it/dinamica/projects/forecast_dpc/moloch_en.htm",
-                  "https://www.cpc.ncep.noaa.gov/products/stratosphere/polar/polar.shtml"]:
-            g(u, 500)
-        import xarray as xr
+        import requests, json
+        B = "https://meteohub.agenziaitaliameteo.it/api"
+        ds = requests.get(B + "/datasets", timeout=60).json()
+        for d in ds:
+            print("DS", d["id"], "|", d.get("is_public"), "|", d["description"][:150])
+        for u in [B + "/opendata/ICON_2I_SURFACE_PRESSURE_LEVELS", B + "/datasets/ICON_2I_SURFACE_PRESSURE_LEVELS/opendata"]:
+            r = requests.get(u, timeout=60)
+            print("==", u, r.status_code, len(r.content)); print(r.text[:2500])
+        r = requests.get(B + "/opendata/ICON_2I_SURFACE_PRESSURE_LEVELS", timeout=60)
         try:
-            ds = xr.open_dataset("https://psl.noaa.gov/thredds/dodsC/Datasets/ncep.reanalysis/Monthlies/pressure/uwnd.mon.mean.nc")
-            print(ds); print(ds.uwnd.sel(level=10, lat=60).mean("lon")[-3:].values)
+            j = r.json()
+            ultimo = sorted(j, key=lambda x: (x.get("date",""), x.get("run","")))[-6:]
+            print(json.dumps(ultimo, indent=1)[:3000])
+            f = ultimo[-1]["filename"]
+            h = requests.head(B + "/opendata/" + f, timeout=60, allow_redirects=True)
+            print("HEAD", f, h.status_code, h.headers.get("content-length"))
+            rr = requests.get(B + "/opendata/" + f, timeout=600, stream=True)
+            with open("/tmp/x.grib", "wb") as o:
+                n = 0
+                for ch in rr.iter_content(1 << 20):
+                    o.write(ch); n += len(ch)
+                    if n > 400 << 20: break
+            print("scaricati", n)
         except Exception as e:
-            print("OPENDAP ERR", e)
+            print("ERR", e)
+    - run: |
+        sudo apt-get install -y -qq libeccodes-tools >/dev/null 2>&1
+        ls -l /tmp/x.grib && grib_ls -p shortName,typeOfLevel,level,stepRange /tmp/x.grib 2>/dev/null | awk '{print $1,$2,$3}' | sort | uniq -c | sort -k2 | head -150
+        grib_ls -p shortName,stepRange /tmp/x.grib 2>/dev/null | awk '{print $2}' | sort -u | head
