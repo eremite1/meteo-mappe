@@ -8,25 +8,22 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
-    - uses: actions/checkout@v4
-    - run: pip install -q -r requirements-mappe.txt
+    - run: sudo apt-get install -y -qq libeccodes-tools > /dev/null 2>&1; pip install -q requests
     - name: Prove
       shell: python
       run: |
-        import sys, os; sys.path.insert(0, os.getcwd())
-        import requests, json
-        from motore import fonti
-        for d in ["italia_meteo_arpae_icon_2i", "ncep_gfs025", "dwd_icon_eu", "ukmo_global_deterministic_10km"]:
-            try:
-                info = fonti.ultimo(d)
-                f = fonti.FileOM(d, info, info["valid_times"][3])
-                print("VARS", d, len(f.nomi), sorted(f.nomi))
-                f.chiudi()
-            except Exception as e:
-                print("ERR", d, e)
-        B = "https://meteohub.agenziaitaliameteo.it/api/datasets/"
-        for d in ["ICON_2I_MODEL_LEVELS", "MOLOCH_AIM", "MOLOCH", "WRF", "BOLAM", "WRF_OL", "ICON_2I_RUC"]:
-            r = requests.get(B + d + "/opendata", timeout=60)
-            print("OD", d, r.status_code, r.text[:700])
-        g = requests.get(B + "MOLOCH_AIM", timeout=60)
-        print("INFO MOLOCH_AIM", g.status_code, g.text[:1500])
+        import requests, subprocess
+        B = "https://meteohub.agenziaitaliameteo.it/api/"
+        for d in ["MOLOCH", "MOLOCH_AIM"]:
+            j = requests.get(B + "datasets/" + d + "/opendata", timeout=60).json()
+            print(d, [(x["date"], x["run"]) for x in j][:10])
+            if not j: continue
+            f = j[0]["filename"]
+            for u in [B + "opendata/" + f, B + "datasets/" + d + "/opendata/" + f]:
+                r = requests.get(u, timeout=900, stream=True)
+                print(u, r.status_code, r.headers.get("content-length"))
+                if r.status_code == 200:
+                    with open("/tmp/m.grib", "wb") as o:
+                        for ch in r.iter_content(1 << 20): o.write(ch)
+                    break
+            print(subprocess.run("ls -l /tmp/m.grib; grib_ls -p shortName,typeOfLevel,level,stepType,stepRange,stepUnits,gridType,Ni,Nj,units /tmp/m.grib | head -40; grib_ls -p shortName,stepRange /tmp/m.grib | awk '{print $1}' | sort | uniq -c; grib_ls -p stepRange /tmp/m.grib | sort -u | tr '\\n' ' '; grib_dump -O -w count=1 /tmp/m.grib | grep -i -E 'latitudeOfFirst|longitudeOfFirst|latitudeOfLast|longitudeOfLast|southPole|iDirection|jDirection|angleOfRotation'", shell=True, capture_output=True, text=True).stdout[:6000])
