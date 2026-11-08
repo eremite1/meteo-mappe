@@ -115,12 +115,21 @@ def wrf_griglie(d01, d02, cartella):
     return out
 
 
-def wrf_punti(d01, d02, stazioni, cartella):
+def wrf_griglia(f, chiave, cartella):
+    """Un solo dominio di un'altra catena WRF (GFS, 333 m) sulla griglia comune."""
+    z = np.load(f)
+    tempi = [ora(str(t)) for t in z["tempi"]]
+    p = Path(cartella) / f"{chiave}.npz"
+    salva_griglia(p, tempi[0], tempi, su_griglia(z["lat"], z["lon"], z["RAINC"] + z["RAINNC"]))
+    return p
+
+
+def wrf_punti(d01, d02, stazioni, cartella, altri=()):
     """Previsioni del WRF nei punti delle stazioni e del radar, nel formato dei punti delle Mappe Lazio
     (corsa, valido, ore, passo, id, T, Td, V, P, h): T e Td in gradi, vento in m/s, pioggia in 3 ore (passo 3)."""
     import csv
     righe_out = {}
-    for chiave, f in (("wrf3km", d01), ("wrf1km", d02)):
+    for chiave, f in [("wrf3km", d01), ("wrf1km", d02)] + list(altri):
         if not f or not Path(f).exists():
             continue
         z = np.load(f)
@@ -496,6 +505,7 @@ def main():
     ap.add_argument("--griglie", nargs="*", default=[])
     ap.add_argument("--wrf", nargs="*", default=[], help="d01_tutto.npz [d02_tutto.npz]")
     ap.add_argument("--nomi", default="", help="json {chiave: {nome, ris}}")
+    ap.add_argument("--wrf-altri", nargs="*", default=[], help="chiave=dominio_tutto.npz delle altre catene WRF")
     a = ap.parse_args()
     adesso = datetime.now(timezone.utc)
     arch = Path(a.storico) / "verifica" / "archivio"
@@ -508,6 +518,14 @@ def main():
             griglie.update({k: str(v) for k, v in wrf_griglie(a.wrf[0], a.wrf[1] if len(a.wrf) > 1 else "", tmp).items()})
         except Exception as e:  # noqa: BLE001
             print("ATTENZIONE: griglie WRF non pronte:", e)
+    for voce in a.wrf_altri:
+        try:
+            k, f = voce.split("=", 1)
+            tmp = Path(a.storico).parent / "griglie_wrf"
+            tmp.mkdir(exist_ok=True)
+            griglie[k] = str(wrf_griglia(f, k, tmp))
+        except Exception as e:  # noqa: BLE001
+            print("ATTENZIONE: griglia", voce, "non pronta:", e)
     for k, p in griglie.items():
         try:
             n = archivia(arch, k, p)
