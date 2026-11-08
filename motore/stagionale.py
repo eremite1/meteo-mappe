@@ -92,13 +92,17 @@ def leggi_cpc(n):
     if not t:
         return out
     for riga in t.splitlines():
-        p = riga.split()
-        if len(p) >= 12 and re.fullmatch(r"\d{4}", p[0]) and re.fullmatch(r"\d{1,2}", p[1]):
-            i = idx(int(p[0]), int(p[1]))
-            if 0 <= i < n:
-                for k, v in zip(out, p[2:12]):
-                    x = float(v)
-                    out[k][i] = np.nan if x < -90 else x
+        m = re.match(r"\s*(\d{4})\s+(\d{1,2})\s(.*)$", riga)
+        if not m:
+            continue
+        valori = re.findall(r"-?\d+\.\d+", m.group(3))      # colonne a larghezza fissa: -99.90 puo' essere attaccato
+        if len(valori) < 10:
+            continue
+        i = idx(int(m.group(1)), int(m.group(2)))
+        if 0 <= i < n:
+            for k, v in zip(out, valori[:10]):
+                x = float(v)
+                out[k][i] = np.nan if x < -90 else x
     return out
 
 
