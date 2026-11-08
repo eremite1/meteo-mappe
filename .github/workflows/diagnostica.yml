@@ -8,36 +8,24 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
-    - run: pip install -q requests xarray netCDF4 pydap
+    - uses: actions/checkout@v4
+    - run: pip install -q -r requirements-mappe.txt
     - name: Prove
       shell: python
       run: |
         import requests, json
-        B = "https://meteohub.agenziaitaliameteo.it/api"
-        ds = requests.get(B + "/datasets", timeout=60).json()
-        for d in ds:
-            print("DS", d["id"], "|", d.get("is_public"), "|", d["description"][:150])
-        for u in [B + "/opendata/ICON_2I_SURFACE_PRESSURE_LEVELS", B + "/datasets/ICON_2I_SURFACE_PRESSURE_LEVELS/opendata"]:
-            r = requests.get(u, timeout=60)
-            print("==", u, r.status_code, len(r.content)); print(r.text[:2500])
-        r = requests.get(B + "/opendata/ICON_2I_SURFACE_PRESSURE_LEVELS", timeout=60)
-        try:
-            j = r.json()
-            ultimo = sorted(j, key=lambda x: (x.get("date",""), x.get("run","")))[-6:]
-            print(json.dumps(ultimo, indent=1)[:3000])
-            f = ultimo[-1]["filename"]
-            h = requests.head(B + "/opendata/" + f, timeout=60, allow_redirects=True)
-            print("HEAD", f, h.status_code, h.headers.get("content-length"))
-            rr = requests.get(B + "/opendata/" + f, timeout=600, stream=True)
-            with open("/tmp/x.grib", "wb") as o:
-                n = 0
-                for ch in rr.iter_content(1 << 20):
-                    o.write(ch); n += len(ch)
-                    if n > 400 << 20: break
-            print("scaricati", n)
-        except Exception as e:
-            print("ERR", e)
-    - run: |
-        sudo apt-get install -y -qq libeccodes-tools >/dev/null 2>&1
-        ls -l /tmp/x.grib && grib_ls -p shortName,typeOfLevel,level,stepRange /tmp/x.grib 2>/dev/null | awk '{print $1,$2,$3}' | sort | uniq -c | sort -k2 | head -150
-        grib_ls -p shortName,stepRange /tmp/x.grib 2>/dev/null | awk '{print $2}' | sort -u | head
+        from motore import fonti
+        for d in ["italia_meteo_arpae_icon_2i", "ncep_gfs025", "dwd_icon_eu", "ukmo_global_deterministic_10km"]:
+            try:
+                info = fonti.ultimo(d)
+                f = fonti.FileOM(d, info, info["valid_times"][3])
+                print("VARS", d, len(f.nomi), sorted(f.nomi))
+                f.chiudi()
+            except Exception as e:
+                print("ERR", d, e)
+        B = "https://meteohub.agenziaitaliameteo.it/api/datasets/"
+        for d in ["ICON_2I_MODEL_LEVELS", "MOLOCH_AIM", "MOLOCH", "WRF", "BOLAM", "WRF_OL", "ICON_2I_RUC"]:
+            r = requests.get(B + d + "/opendata", timeout=60)
+            print("OD", d, r.status_code, r.text[:700])
+        g = requests.get(B + "MOLOCH_AIM", timeout=60)
+        print("INFO MOLOCH_AIM", g.status_code, g.text[:1500])
