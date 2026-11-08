@@ -40,7 +40,7 @@ NOME = "Multimodello"
 
 # parametro -> grandezza della pagella che decide i pesi ("G" = affidabilità generale)
 PESO_DA = {
-    "temperatura": "T", "percepita": "T", "humidex": "T", "t850": "T", "zero_termico": "T",
+    "temperatura": "T", "delta_t24": "T", "percepita": "T", "humidex": "T", "t850": "T", "zero_termico": "T",
     "rugiada": "Td", "umidita": "Td",
     "vento": "V", "raffiche": "V",
     "pioggia": "P", "neve": "P",

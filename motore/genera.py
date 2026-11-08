@@ -304,6 +304,16 @@ class Contesto:
             c = np.clip(c, minimo, massimo)
         return c
 
+    def prima(self, ore):
+        """Lo stesso modello e la stessa area, ma 'ore' ore prima (serve per le variazioni nel tempo)."""
+        t0 = self.t - timedelta(hours=ore)
+        if t0 < self.L.corsa:
+            raise Mancante(f"{ore} ore prima")           # prima dell'inizio della corsa non ci sono dati
+        chiave = ("prima", ore)
+        if chiave not in self.cache:
+            self.cache[chiave] = Contesto(self.L, self.area, t0)
+        return self.cache[chiave]
+
     def ha(self, nome):
         try:
             self._sorgente(nome)
@@ -788,7 +798,7 @@ def _fai_istante(compito):
                     passo_eff = L.passo[area]
                     unita = unita.replace("nelle ore precedenti", f"nelle {passo_eff} ore precedenti" if passo_eff > 1 else "nell'ora precedente")
                 info = f"Modello {L.cfg['nome']} ({L.cfg['ris']}) · corsa {L.corsa:%d/%m %H} UTC · ora italiana ({ora_utc})"
-                if p["id"] in ("temperatura", "percepita", "bulbo_umido", "gelate", "incendi") and area == "lazio" and L.terreno is not None:
+                if p["id"] in ("temperatura", "delta_t24", "percepita", "bulbo_umido", "gelate", "incendi") and area == "lazio" and L.terreno is not None:
                     info = f"Modello {L.cfg['nome']} ({L.cfg['ris']}) · dettaglio del terreno a 500 m · corsa {L.corsa:%d/%m %H} UTC"
                 nome = f"{p['id']}_h{h:03d}.png"
                 dis.disegna(os.path.join(cartella, nome), campo, p, L.cfg["nome"], data,

@@ -157,6 +157,9 @@ def _livelli_da(campo, passo):
 # --- Temperatura ------------------------------------------------------------
 P("temperatura", "Temperatura a 2 m", "Temperatura", "°C", S_TEMP, TUTTE,
   lambda c: c.t2m(), stile_europa=S_TEMP_EU)
+P("delta_t24", "Variazione di temperatura in 24 ore", "Temperatura", "°C rispetto alla stessa ora del giorno prima (rosso più caldo, blu più freddo)",
+  dict(livelli=livelli(-12, 12, 1), cmap=plt.get_cmap("RdBu_r"), extend="both"), TUTTE,
+  lambda c: c.t2m() - c.prima(24).t2m())
 P("percepita", "Temperatura percepita", "Temperatura", "°C (vento e umidità)", S_TEMP, LOC,
   lambda c: C.temperatura_percepita(c.t2m(), c.ur2m(), c.vel("10m")))
 P("rugiada", "Punto di rugiada", "Temperatura", "°C",
@@ -399,7 +402,7 @@ P("grandine", "Rischio grandine (SHIP)", "Temporali",
 
 # --- Macrocategorie (ordine e raggruppamento sulla pagina) -------------------------
 CATEGORIA_DI = {
-    "Temperatura": ["temperatura", "percepita", "humidex", "rugiada", "bulbo_umido", "umidita",
+    "Temperatura": ["temperatura", "delta_t24", "percepita", "humidex", "rugiada", "bulbo_umido", "umidita",
                     "inversione", "t925", "zero_termico", "quota_neve"],
     "Precipitazioni": ["pioggia", "tipo_precipitazione", "pioggia_isobare", "pioggia_6h", "pioggia_12h",
                        "pioggia_24h", "pioggia_totale", "rovesci",
