@@ -1,0 +1,10 @@
+requests
+numpy
+scipy
+matplotlib
+cartopy
+shapely
+pillow
+omfiles
+fsspec
+s3fs
