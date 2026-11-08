@@ -13,6 +13,7 @@ jobs:
     - name: Prove
       shell: python
       run: |
+        import sys, os; sys.path.insert(0, os.getcwd())
         import requests, json
         from motore import fonti
         for d in ["italia_meteo_arpae_icon_2i", "ncep_gfs025", "dwd_icon_eu", "ukmo_global_deterministic_10km"]:
