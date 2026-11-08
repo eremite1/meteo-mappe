@@ -404,7 +404,9 @@ def spiegazione(nomi, contrib_t, contrib_p, x_now):
         if abs(ct) < 0.05 and abs(cp) < 3:
             continue
         nome = INDICI[n][0]
-        if n in x_now:
+        if n == "TREND":
+            testa = nome + " (riscaldamento degli ultimi decenni)"
+        elif n in x_now:
             v = x_now[n]
             fase = "positiva" if v > 0 else "negativa"
             if n == "ENSO":
@@ -413,9 +415,7 @@ def spiegazione(nomi, contrib_t, contrib_p, x_now):
                 fase = "occidentale" if v > 0 else "orientale"
             elif n == "VORTICE":
                 fase = "forte" if v > 0 else "debole"
-            testa = f"{nome} {fase} ({v:+.1f})"
-        elif n == "TREND":
-            testa = nome
+            testa = f"{nome}: fase {fase} ({v:+.1f})"
         else:
             testa = "Persistenza dell'anomalia del mese passato"
         effetto_t = ("più caldo" if ct > 0 else "più freddo") + f" ({ct:+.1f} °C)"
