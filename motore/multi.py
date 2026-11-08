@@ -29,9 +29,9 @@ from . import genera as G
 from .catalogo import PARAMETRI, MODELLI
 
 AREE_MULTI = {
-    "lazio": dict(componenti=["icon2i", "arome", "ecmwf", "ukmo"], massimo=72, pagella="lazio"),
-    "italia": dict(componenti=["icon2i", "ecmwf", "ukmo", "iconeu"], massimo=168, pagella="italia"),
-    "europa": dict(componenti=["ecmwf", "ukmo", "iconeu"], massimo=168, pagella="italia"),
+    "lazio": dict(componenti=["icon2i", "arome", "ecmwf", "ukmo", "gfs"], massimo=72, pagella="lazio"),
+    "italia": dict(componenti=["icon2i", "ecmwf", "ukmo", "iconeu", "gfs"], massimo=168, pagella="italia"),
+    "europa": dict(componenti=["ecmwf", "ukmo", "iconeu", "gfs"], massimo=168, pagella="italia"),
 }
 AREA = "lazio"       # area in elaborazione (impostata da esegui)
 PASSO = 3            # ore tra una mappa e l'altra
@@ -47,6 +47,7 @@ PESO_DA = {
     "nuvole": "G", "nuvole_basse": "G", "nuvole_medie": "G", "nuvole_alte": "G",
     "pressione": "G", "cape": "G", "quota_neve": "G",
     "pioggia_isobare": "P", "z500_t500": "G",
+    "anom_t850": "T", "anom_z500": "G", "anom_pressione": "G", "anom_pioggia": "P",
     "pioggia_6h": "P", "pioggia_12h": "P", "pioggia_24h": "P", "grandine": "G",
 }
 FASCE = [(0, 12, "0-12 ore"), (12, 24, "12-24 ore"), (24, 48, "24-48 ore"), (48, 72, "48-72 ore"),

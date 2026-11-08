@@ -1,7 +1,7 @@
 """
 Genera tutte le mappe di un modello per le sue aree (Lazio, Italia, Europa).
 
-Uso:  python -m motore.genera icon2i        (oppure ecmwf, ukmo, arome, iconeu)
+Uso:  python -m motore.genera icon2i        (oppure ecmwf, ukmo, arome, iconeu, gfs)
 
 Fasi:
  1. legge latest.json dei dataset del modello (ultima corsa completa);

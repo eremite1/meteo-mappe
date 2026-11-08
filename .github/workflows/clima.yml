@@ -1,0 +1,25 @@
+name: Prepara la climatologia
+# Si lancia una volta sola (o se si vuole rifarla): medie 1991-2020 dalla rianalisi NCEP/NCAR,
+# salvate in dati/ per le mappe di anomalia e per il modello stagionale.
+on:
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  clima:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+    - uses: actions/checkout@v4
+    - uses: actions/setup-python@v5
+      with:
+        python-version: '3.11'
+    - run: pip install -q numpy scipy xarray netCDF4
+    - run: python -m motore.prepara_clima dati/clima_ncep_1991_2020.npz && ls -lh dati/
+    - name: Salvo nel repository
+      run: |
+        git config user.name 'github-actions[bot]'
+        git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+        git add dati/clima_ncep_1991_2020.npz
+        git commit -m "Climatologia 1991-2020 (NCEP/NCAR) per anomalie e modello stagionale" || exit 0
+        for i in 1 2 3; do git pull -q --rebase && git push -q && break; sleep 5; done

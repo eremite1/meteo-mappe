@@ -32,6 +32,10 @@ MODELLI = {
     "ukmo": dict(nome="UKMO", ris="10 km", sigma=14, min_ore=90,
                  fonti={"*": ["ukmo_global_deterministic_10km"]},
                  aree={"lazio": (3, 72), "italia": (3, 168), "europa": (3, 168)}),
+    "gfs": dict(nome="GFS", ris="13 km", sigma=18, min_ore=90,
+                fonti={"lazio": ["ncep_gfs013", "ncep_gfs025"], "italia": ["ncep_gfs013", "ncep_gfs025"],
+                       "europa": ["ncep_gfs025"]},
+                aree={"lazio": (3, 72), "italia": (3, 168), "europa": (3, 168)}),
     "iconeu": dict(nome="ICON-EU", ris="7 km", sigma=10, min_ore=90,
                    fonti={"*": ["dwd_icon_eu"]},
                    aree={"italia": (3, 168), "europa": (3, 168)}),
@@ -400,6 +404,41 @@ P("grandine", "Rischio grandine (SHIP)", "Temporali",
                    c.v("temperature_500hPa"), C.shear(*c.uv("10m"), *c.uv("500hPa")) / 3.6,
                    c.zero_termico()))
 
+# --- Anomalie rispetto al clima 1991-2020 (rianalisi NCEP/NCAR) -----------------------
+from . import clima as CL
+
+S_ANOM_T = dict(livelli=livelli(-14, 14, 1), cmap=plt.get_cmap("RdBu_r"), extend="both")
+P("anom_t850", "Anomalia di temperatura a 850 hPa", "Anomalie",
+  "°C rispetto alla media 1991-2020 dello stesso giorno (rosso più caldo, blu più freddo)", S_ANOM_T, {"italia", "europa"},
+  lambda c: dict(campo=c.v("temperature_850hPa") - CL.area("t850", c),
+                 contorni=(c.liscia(c.v("geopotential_height_500hPa"), 1) / 10, None, 4)))
+P("anom_z500", "Anomalia di geopotenziale a 500 hPa", "Anomalie",
+  "decametri rispetto alla media 1991-2020 (rosso alta pressione in quota, blu saccature) · isoipse in dam",
+  dict(livelli=livelli(-36, 36, 3), cmap=plt.get_cmap("RdBu_r"), extend="both"), {"italia", "europa"},
+  lambda c: dict(campo=(c.v("geopotential_height_500hPa") - CL.area("z500", c)) / 10,
+                 contorni=(c.liscia(c.v("geopotential_height_500hPa"), 1) / 10, None, 4)))
+P("anom_pressione", "Anomalia di pressione al livello del mare", "Anomalie",
+  "hPa rispetto alla media 1991-2020 · isobare in hPa",
+  dict(livelli=livelli(-30, 30, 2), cmap=plt.get_cmap("PuOr_r"), extend="both"), {"italia", "europa"},
+  lambda c: dict(campo=_isobare(c, 0) - CL.area("mslp", c),
+                 contorni=(_isobare(c, _liscia_isobare(c)), None, _passo_isobare(c))))
+
+
+def _pioggia_norma(c):
+    giorni = (c.t - c.L.corsa).total_seconds() / 86400
+    if giorni < 1 - 1e-6 or round(giorni * 24) % 24:
+        from .genera import Mancante
+        raise Mancante("una mappa al giorno")
+    norma = np.maximum(CL.area("pioggia", c) * giorni, 0.5)
+    return np.clip(100 * c.acc_totale("precipitation") / norma, 0, 1000)
+
+
+P("anom_pioggia", "Precipitazioni rispetto alla norma", "Anomalie",
+  "% della pioggia normale 1991-2020 dall'inizio della previsione (100 = nella norma)",
+  dict(livelli=[0, 10, 25, 50, 75, 90, 110, 150, 200, 300, 1001],
+       colori=["#8c510a", "#bf812d", "#dfc27d", "#f6e8c3", "#fbf3e0", "#f5f5f5", "#c7eae5", "#80cdc1", "#35978f", "#01665e"],
+       extend="neither"), {"italia", "europa"}, _pioggia_norma)
+
 # --- Macrocategorie (ordine e raggruppamento sulla pagina) -------------------------
 CATEGORIA_DI = {
     "Temperatura": ["temperatura", "delta_t24", "percepita", "humidex", "rugiada", "bulbo_umido", "umidita",
@@ -415,6 +454,7 @@ CATEGORIA_DI = {
                           "strato_limite", "temperatura_mare"],
     "Temporali": ["grandine", "cape", "cin", "fulminazioni", "cape_shear", "instabilita_potenziale", "k_index",
                   "total_totals", "showalter", "lifted_index", "shear", "sweat"],
+    "Anomalie": ["anom_t850", "anom_z500", "anom_pressione", "anom_pioggia"],
     "Suolo e agricoltura": ["gelate", "temperatura_suolo", "umidita_suolo", "evapotraspirazione", "incendi"],
 }
 # parametri che hanno senso solo sulla terraferma: il mare li copre
