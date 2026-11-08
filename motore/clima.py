@@ -60,7 +60,6 @@ def su_griglia(nome, t, lat, lon):
 def area(nome, c):
     """Climatologia per il contesto c (modello, area, istante)."""
     if not disponibile():
-        from .genera import Mancante
-        raise Mancante("climatologia")
+        raise KeyError("climatologia non disponibile")
     lat, lon = c.L.griglie[c.area]
     return su_griglia(nome, c.t, lat, lon)

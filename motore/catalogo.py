@@ -427,8 +427,7 @@ P("anom_pressione", "Anomalia di pressione al livello del mare", "Anomalie",
 def _pioggia_norma(c):
     giorni = (c.t - c.L.corsa).total_seconds() / 86400
     if giorni < 1 - 1e-6 or round(giorni * 24) % 24:
-        from .genera import Mancante
-        raise Mancante("una mappa al giorno")
+        raise KeyError("una mappa al giorno")          # saltata di proposito, non e' un errore
     norma = np.maximum(CL.area("pioggia", c) * giorni, 0.5)
     return np.clip(100 * c.acc_totale("precipitation") / norma, 0, 1000)
 
