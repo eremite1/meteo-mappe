@@ -139,6 +139,26 @@ def leggi_psl(nome, n, mancante=-99.0):
     return s
 
 
+def leggi_qbo_cpc(n):
+    s = serie_vuota(n)
+    t = _get("https://www.cpc.ncep.noaa.gov/data/indices/qbo.u30.index")
+    if t:
+        for riga in t.splitlines():
+            p = riga.split()
+            if len(p) >= 2 and re.fullmatch(r"\d{4}", p[0]):
+                for m, v in enumerate(p[1:13], 1):
+                    try:
+                        x = float(v)
+                    except ValueError:
+                        continue
+                    i = idx(int(p[0]), m)
+                    if 0 <= i < n and abs(x) < 900:
+                        s[i] = x
+            elif riga.strip().upper().startswith("ANOMALY") or "STANDARDIZED" in riga.upper():
+                break                                   # dopo i valori originali il file riporta anomalie: non servono
+    return s
+
+
 def leggi_vortice(n):
     """Vento zonale medio a 10 hPa e 60° N (rianalisi NCEP/NCAR), m/s."""
     s = serie_vuota(n)
@@ -173,7 +193,10 @@ def scarica_indici(fino):
     ind = {k: cpc[k] for k in ("NAO", "EA", "SCA", "EAWR", "POL", "PNA")}
     ind["AO"] = leggi_anno_mese_valore(AO, n)
     ind["ENSO"] = leggi_psl("nina34.anom.data", n)
-    ind["QBO"] = anomalia_mensile(leggi_psl("qbo.data", n), n)
+    qbo = leggi_psl("qbo.data", n)
+    recente = leggi_qbo_cpc(n)                      # CPC (rianalisi CORe) e' aggiornato ogni mese
+    qbo = np.where(np.isfinite(recente), recente, qbo)
+    ind["QBO"] = anomalia_mensile(qbo, n)
     ind["AMO"] = leggi_psl("amon.us.data", n)
     ind["VORTICE"] = anomalia_mensile(leggi_vortice(n), n)
     for k, v in ind.items():
