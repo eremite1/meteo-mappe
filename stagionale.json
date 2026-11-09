@@ -1,0 +1,568 @@
+{
+ "emesso_utc": "2026-11-09T13:58Z",
+ "mese_emissione": "2026-10",
+ "rianalisi_fino": "2026-02",
+ "indici": {
+  "NAO": {
+   "nome": "Oscillazione Nord Atlantica",
+   "positivo": "anticiclone delle Azzorre forte e depressione d'Islanda profonda: correnti atlantiche verso il nord Europa",
+   "valore": 1.81,
+   "ultimi_12": [
+    -0.96,
+    -0.69,
+    -0.93,
+    0.33,
+    2.42,
+    1.37,
+    -0.64,
+    0.41,
+    -0.28,
+    -2.58,
+    0.67,
+    1.81
+   ]
+  },
+  "AO": {
+   "nome": "Oscillazione Artica",
+   "positivo": "aria fredda chiusa sul Polo, vortice compatto",
+   "valore": 1.29,
+   "ultimi_12": [
+    -0.47,
+    0.27,
+    -2.05,
+    -1.26,
+    2.04,
+    0.25,
+    0.54,
+    0.66,
+    0.3,
+    -0.06,
+    1.16,
+    1.29
+   ]
+  },
+  "EA": {
+   "nome": "Atlantico Orientale",
+   "positivo": "alta pressione spostata a sud sull'Atlantico orientale",
+   "valore": 1.21,
+   "ultimi_12": [
+    1.06,
+    0.06,
+    0.5,
+    2.07,
+    -0.77,
+    -0.1,
+    0.7,
+    0.85,
+    0.99,
+    2.63,
+    2.55,
+    1.21
+   ]
+  },
+  "SCA": {
+   "nome": "Scandinavo",
+   "positivo": "anticiclone sulla Scandinavia",
+   "valore": 0.02,
+   "ultimi_12": [
+    0.09,
+    0.49,
+    0.67,
+    -0.28,
+    -0.58,
+    -0.07,
+    -0.43,
+    -2.4,
+    -1.14,
+    -1.33,
+    -1.88,
+    0.02
+   ]
+  },
+  "EAWR": {
+   "nome": "Atlantico Est / Russia Ovest",
+   "positivo": "alta sull'Europa occidentale e bassa sulla Russia occidentale",
+   "valore": -1.74,
+   "ultimi_12": [
+    0.29,
+    -0.18,
+    -1.33,
+    -0.63,
+    1.67,
+    0.53,
+    -0.43,
+    -1.51,
+    -1.78,
+    -1.28,
+    -2.54,
+    -1.74
+   ]
+  },
+  "POL": {
+   "nome": "Polare / Eurasiatico",
+   "positivo": "vortice polare intenso sull'Eurasia",
+   "valore": -0.42,
+   "ultimi_12": [
+    0.58,
+    -0.7,
+    -1.4,
+    -1.98,
+    -1.44,
+    -1.29,
+    0.39,
+    -2.49,
+    1.33,
+    1.27,
+    -0.16,
+    -0.42
+   ]
+  },
+  "PNA": {
+   "nome": "Pacifico / Nord America",
+   "positivo": "onda lunga sul Pacifico e sul Nord America",
+   "valore": 0.47,
+   "ultimi_12": [
+    0.74,
+    -1.71,
+    0.36,
+    -1.04,
+    -1.99,
+    -1.46,
+    -1.03,
+    -0.42,
+    0.16,
+    -0.11,
+    -0.57,
+    0.47
+   ]
+  },
+  "ENSO": {
+   "nome": "El Niño (Niño 3.4)",
+   "positivo": "acque del Pacifico equatoriale più calde del normale (El Niño)",
+   "valore": 2.3,
+   "ultimi_12": [
+    -0.54,
+    -0.39,
+    -0.4,
+    -0.02,
+    0.22,
+    0.74,
+    1.09,
+    1.58,
+    1.73,
+    1.89,
+    2.09,
+    2.3
+   ]
+  },
+  "QBO": {
+   "nome": "Oscillazione Quasi Biennale",
+   "positivo": "venti occidentali nella stratosfera equatoriale (30 hPa)",
+   "valore": 22.0,
+   "ultimi_12": [
+    -21.8,
+    -24.24,
+    -23.4,
+    -21.86,
+    -16.65,
+    -8.66,
+    -0.22,
+    8.9,
+    14.94,
+    17.44,
+    22.0,
+    22.0
+   ]
+  },
+  "AMO": {
+   "nome": "Oscillazione Multidecennale Atlantica",
+   "positivo": "Atlantico del nord più caldo del normale",
+   "valore": 0.0,
+   "ultimi_12": [
+    null,
+    null,
+    null,
+    null,
+    null,
+    null,
+    null,
+    null,
+    null,
+    null,
+    null,
+    0.0
+   ]
+  },
+  "VORTICE": {
+   "nome": "Vortice polare stratosferico",
+   "positivo": "vortice polare più forte del normale (vento a 10 hPa, 60° N)",
+   "valore": 0.0,
+   "ultimi_12": [
+    -11.48,
+    -11.05,
+    2.83,
+    -3.67,
+    null,
+    null,
+    null,
+    null,
+    null,
+    null,
+    null,
+    0.0
+   ]
+  }
+ },
+ "mesi": [
+  {
+   "anticipo": 1,
+   "mese": "2026-11",
+   "nome_mese": "novembre 2026",
+   "immagini": {
+    "temperatura": "temperatura_1.png",
+    "pioggia": "pioggia_1.png",
+    "abilita_t": "abilita_t_1.png",
+    "abilita_p": "abilita_p_1.png"
+   },
+   "centro_italia": {
+    "t": 0.69,
+    "prob_caldo": 75,
+    "p_perc": 3,
+    "prob_piovoso": 53,
+    "abilita_t": 0.4,
+    "abilita_p": 0.0
+   },
+   "italia": {
+    "t": 0.67,
+    "prob_caldo": 75,
+    "p_perc": 2,
+    "prob_piovoso": 52,
+    "abilita_t": 0.45,
+    "abilita_p": -0.02
+   },
+   "contributi": [
+    {
+     "indice": "NAO",
+     "nome": "Oscillazione Nord Atlantica",
+     "t": -0.1,
+     "p": -3.8
+    },
+    {
+     "indice": "AO",
+     "nome": "Oscillazione Artica",
+     "t": 0.02,
+     "p": -0.4
+    },
+    {
+     "indice": "EA",
+     "nome": "Atlantico Orientale",
+     "t": 0.03,
+     "p": 2.2
+    },
+    {
+     "indice": "SCA",
+     "nome": "Scandinavo",
+     "t": -0.01,
+     "p": -0.2
+    },
+    {
+     "indice": "EAWR",
+     "nome": "Atlantico Est / Russia Ovest",
+     "t": -0.08,
+     "p": 2.0
+    },
+    {
+     "indice": "POL",
+     "nome": "Polare / Eurasiatico",
+     "t": 0.01,
+     "p": -0.6
+    },
+    {
+     "indice": "PNA",
+     "nome": "Pacifico / Nord America",
+     "t": -0.02,
+     "p": -0.4
+    },
+    {
+     "indice": "ENSO",
+     "nome": "El Niño (Niño 3.4)",
+     "t": 0.66,
+     "p": 2.2
+    },
+    {
+     "indice": "QBO",
+     "nome": "Oscillazione Quasi Biennale",
+     "t": 0.15,
+     "p": 4.0
+    },
+    {
+     "indice": "AMO",
+     "nome": "Oscillazione Multidecennale Atlantica",
+     "t": -0.01,
+     "p": -0.1
+    },
+    {
+     "indice": "VORTICE",
+     "nome": "Vortice polare stratosferico",
+     "t": -0.03,
+     "p": -0.4
+    },
+    {
+     "indice": "TREND",
+     "nome": "Tendenza di lungo periodo",
+     "t": 0.31,
+     "p": 8.0
+    },
+    {
+     "indice": "PERS",
+     "nome": "Persistenza",
+     "t": 0.04,
+     "p": 0.1
+    }
+   ],
+   "spiegazione": [
+    "El Niño (Niño 3.4): fase El Niño (+2.3): spinge verso un tempo più caldo (+0.7 °C) e più piovoso (+2%) sull'Italia centrale.",
+    "Tendenza di lungo periodo (riscaldamento degli ultimi decenni): spinge verso un tempo più caldo (+0.3 °C) e più piovoso (+8%) sull'Italia centrale.",
+    "Oscillazione Quasi Biennale: fase occidentale (+22.0): spinge verso un tempo più caldo (+0.2 °C) e più piovoso (+4%) sull'Italia centrale.",
+    "Oscillazione Nord Atlantica: fase positiva (+1.8): spinge verso un tempo più freddo (-0.1 °C) e più secco (-4%) sull'Italia centrale.",
+    "Atlantico Est / Russia Ovest: fase negativa (-1.7): spinge verso un tempo più freddo (-0.1 °C) e più piovoso (+2%) sull'Italia centrale."
+   ],
+   "casi_storici": 216
+  },
+  {
+   "anticipo": 2,
+   "mese": "2026-12",
+   "nome_mese": "dicembre 2026",
+   "immagini": {
+    "temperatura": "temperatura_2.png",
+    "pioggia": "pioggia_2.png",
+    "abilita_t": "abilita_t_2.png",
+    "abilita_p": "abilita_p_2.png"
+   },
+   "centro_italia": {
+    "t": 0.48,
+    "prob_caldo": 65,
+    "p_perc": 15,
+    "prob_piovoso": 61,
+    "abilita_t": 0.13,
+    "abilita_p": 0.01
+   },
+   "italia": {
+    "t": 0.49,
+    "prob_caldo": 68,
+    "p_perc": 5,
+    "prob_piovoso": 54,
+    "abilita_t": 0.26,
+    "abilita_p": 0.04
+   },
+   "contributi": [
+    {
+     "indice": "NAO",
+     "nome": "Oscillazione Nord Atlantica",
+     "t": 0.03,
+     "p": -1.4
+    },
+    {
+     "indice": "AO",
+     "nome": "Oscillazione Artica",
+     "t": -0.04,
+     "p": 3.4
+    },
+    {
+     "indice": "EA",
+     "nome": "Atlantico Orientale",
+     "t": 0.03,
+     "p": 4.4
+    },
+    {
+     "indice": "SCA",
+     "nome": "Scandinavo",
+     "t": -0.02,
+     "p": -0.6
+    },
+    {
+     "indice": "EAWR",
+     "nome": "Atlantico Est / Russia Ovest",
+     "t": 0.12,
+     "p": 2.4
+    },
+    {
+     "indice": "POL",
+     "nome": "Polare / Eurasiatico",
+     "t": -0.04,
+     "p": -0.2
+    },
+    {
+     "indice": "PNA",
+     "nome": "Pacifico / Nord America",
+     "t": -0.03,
+     "p": 0.7
+    },
+    {
+     "indice": "ENSO",
+     "nome": "El Niño (Niño 3.4)",
+     "t": 0.38,
+     "p": 1.3
+    },
+    {
+     "indice": "QBO",
+     "nome": "Oscillazione Quasi Biennale",
+     "t": 0.03,
+     "p": 5.9
+    },
+    {
+     "indice": "AMO",
+     "nome": "Oscillazione Multidecennale Atlantica",
+     "t": -0.0,
+     "p": -0.2
+    },
+    {
+     "indice": "VORTICE",
+     "nome": "Vortice polare stratosferico",
+     "t": 0.0,
+     "p": -0.7
+    },
+    {
+     "indice": "TREND",
+     "nome": "Tendenza di lungo periodo",
+     "t": 0.23,
+     "p": 2.1
+    },
+    {
+     "indice": "PERS",
+     "nome": "Persistenza",
+     "t": 0.0,
+     "p": 0.5
+    }
+   ],
+   "spiegazione": [
+    "El Niño (Niño 3.4): fase El Niño (+2.3): spinge verso un tempo più caldo (+0.4 °C) e più piovoso (+1%) sull'Italia centrale.",
+    "Tendenza di lungo periodo (riscaldamento degli ultimi decenni): spinge verso un tempo più caldo (+0.2 °C) e più piovoso (+2%) sull'Italia centrale.",
+    "Atlantico Est / Russia Ovest: fase negativa (-1.7): spinge verso un tempo più caldo (+0.1 °C) e più piovoso (+2%) sull'Italia centrale.",
+    "Oscillazione Artica: fase positiva (+1.3): spinge verso un tempo più freddo (-0.0 °C) e più piovoso (+3%) sull'Italia centrale."
+   ],
+   "casi_storici": 216
+  },
+  {
+   "anticipo": 3,
+   "mese": "2027-01",
+   "nome_mese": "gennaio 2027",
+   "immagini": {
+    "temperatura": "temperatura_3.png",
+    "pioggia": "pioggia_3.png",
+    "abilita_t": "abilita_t_3.png",
+    "abilita_p": "abilita_p_3.png"
+   },
+   "centro_italia": {
+    "t": 0.91,
+    "prob_caldo": 74,
+    "p_perc": 3,
+    "prob_piovoso": 52,
+    "abilita_t": 0.13,
+    "abilita_p": -0.07
+   },
+   "italia": {
+    "t": 0.79,
+    "prob_caldo": 75,
+    "p_perc": 2,
+    "prob_piovoso": 50,
+    "abilita_t": 0.2,
+    "abilita_p": -0.06
+   },
+   "contributi": [
+    {
+     "indice": "NAO",
+     "nome": "Oscillazione Nord Atlantica",
+     "t": -0.11,
+     "p": 9.9
+    },
+    {
+     "indice": "AO",
+     "nome": "Oscillazione Artica",
+     "t": 0.28,
+     "p": -2.1
+    },
+    {
+     "indice": "EA",
+     "nome": "Atlantico Orientale",
+     "t": -0.02,
+     "p": 0.6
+    },
+    {
+     "indice": "SCA",
+     "nome": "Scandinavo",
+     "t": -0.01,
+     "p": -0.5
+    },
+    {
+     "indice": "EAWR",
+     "nome": "Atlantico Est / Russia Ovest",
+     "t": 0.11,
+     "p": 1.4
+    },
+    {
+     "indice": "POL",
+     "nome": "Polare / Eurasiatico",
+     "t": -0.03,
+     "p": 0.3
+    },
+    {
+     "indice": "PNA",
+     "nome": "Pacifico / Nord America",
+     "t": -0.05,
+     "p": -0.2
+    },
+    {
+     "indice": "ENSO",
+     "nome": "El Niño (Niño 3.4)",
+     "t": 0.51,
+     "p": -3.1
+    },
+    {
+     "indice": "QBO",
+     "nome": "Oscillazione Quasi Biennale",
+     "t": 0.12,
+     "p": 3.2
+    },
+    {
+     "indice": "AMO",
+     "nome": "Oscillazione Multidecennale Atlantica",
+     "t": 0.0,
+     "p": -0.3
+    },
+    {
+     "indice": "VORTICE",
+     "nome": "Vortice polare stratosferico",
+     "t": -0.02,
+     "p": 1.1
+    },
+    {
+     "indice": "TREND",
+     "nome": "Tendenza di lungo periodo",
+     "t": 0.13,
+     "p": -16.5
+    },
+    {
+     "indice": "PERS",
+     "nome": "Persistenza",
+     "t": 0.0,
+     "p": 2.0
+    }
+   ],
+   "spiegazione": [
+    "El Niño (Niño 3.4): fase El Niño (+2.3): spinge verso un tempo più caldo (+0.5 °C) e più secco (-3%) sull'Italia centrale.",
+    "Oscillazione Artica: fase positiva (+1.3): spinge verso un tempo più caldo (+0.3 °C) e più secco (-2%) sull'Italia centrale.",
+    "Tendenza di lungo periodo (riscaldamento degli ultimi decenni): spinge verso un tempo più caldo (+0.1 °C) e più secco (-17%) sull'Italia centrale.",
+    "Oscillazione Quasi Biennale: fase occidentale (+22.0): spinge verso un tempo più caldo (+0.1 °C) e più piovoso (+3%) sull'Italia centrale.",
+    "Atlantico Est / Russia Ovest: fase negativa (-1.7): spinge verso un tempo più caldo (+0.1 °C) e più piovoso (+1%) sull'Italia centrale."
+   ],
+   "casi_storici": 216
+  }
+ ],
+ "fonti": [
+  "Indici di teleconnessione: NOAA Climate Prediction Center",
+  "Niño 3.4, QBO, AMO: NOAA Physical Sciences Laboratory",
+  "Rianalisi NCEP/NCAR R1 (NOAA PSL): vortice polare, temperatura e pioggia dal 1950"
+ ],
+ "verifica": []
+}
