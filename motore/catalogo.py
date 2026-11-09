@@ -96,8 +96,13 @@ CMAP_PIOGGIA = ["#c8e6ff", "#96cdff", "#5aaaf5", "#1e78dc", "#00b45a", "#5ad200"
 # neve: si parte da un azzurro ciano ben visibile (non bianco, altrimenti si confonde col terreno)
 CMAP_NEVE = ["#8fe3f0", "#4fcbe6", "#1fa9dc", "#1f7fd2", "#3d5ccc", "#6544c4",
              "#8f33b8", "#b5249e", "#d6197c", "#e8125a"]
-CMAP_VENTO = cm(["#f7fbff", "#c6e9c2", "#7fd0a8", "#3fb0c8", "#2b7fd8", "#7b5cd6",
-                 "#c53fb3", "#e8355f", "#f08a1f", "#ffe14d"], "vento")
+# vento: dal bianco (calma) al verde, poi giallo-arancio-rosso per il vento forte e viola per quello violento,
+# cosi' i colori "caldi" e scuri richiamano subito l'attenzione sui valori pericolosi
+CMAP_VENTO = cm(["#f4f9f4", "#c9ecc0", "#86d07f", "#3faf4f", "#f2e14c", "#f5a524", "#ec6a1c",
+                 "#d7301f", "#a50f3c", "#c51b8a", "#7a1fa2", "#3f0f7a"], "vento")
+# raffiche: una classe di colore netto per ogni gradino, rosso da 80 km/h, viola oltre 115 km/h
+COLORI_RAFFICHE = ["#b7e4a8", "#5cc46b", "#f4e04d", "#f5b22e", "#ef7d1a", "#e04a1f",
+                   "#c81e2e", "#9e0e47", "#c21fa0", "#8a2be2", "#4b1fa8", "#1c0f5a"]
 CMAP_NUVOLE = cm(["#eef2f6", "#c3cbd3", "#8e99a6", "#56606c"], "nuvole")
 CMAP_INSTAB = cm(["#fffbd0", "#fee391", "#fec44f", "#fe9929", "#ec7014", "#cc4c02",
                   "#b3001b", "#7a0177", "#49006a"], "instab")
@@ -210,7 +215,7 @@ P("vento", "Vento a 10 m", "Vento", "km/h (le frecce indicano la direzione)",
   dict(livelli=[0, 5, 10, 15, 20, 25, 30, 40, 50, 60, 75, 90, 110], cmap=CMAP_VENTO, extend="max"),
   TUTTE, lambda c: dict(campo=c.vel("10m"), frecce=c.uv("10m")))
 P("raffiche", "Raffiche di vento", "Vento", "km/h",
-  dict(livelli=[20, 30, 40, 50, 60, 70, 80, 90, 100, 120, 140], cmap=plt.get_cmap("YlOrRd"),
+  dict(livelli=[20, 30, 40, 50, 60, 70, 80, 90, 100, 115, 130, 150, 180], colori=COLORI_RAFFICHE,
        extend="max", ombra=True), TUTTE, lambda c: c.v("wind_gusts_10m", minimo=0, unita="vento"))
 P("vento_850", "Vento a 850 hPa (~1500 m)", "Vento", "km/h",
   dict(livelli=[10, 20, 30, 40, 50, 60, 70, 80, 100, 120, 140], cmap=CMAP_VENTO, extend="max"),
@@ -412,6 +417,9 @@ P("anom_t850", "Anomalia di temperatura a 850 hPa", "Anomalie",
   "°C rispetto alla media 1991-2020 dello stesso giorno (rosso più caldo, blu più freddo)", S_ANOM_T, {"italia", "europa"},
   lambda c: dict(campo=c.v("temperature_850hPa") - CL.area("t850", c),
                  contorni=(c.liscia(c.v("geopotential_height_500hPa"), 1) / 10, None, 4)))
+P("anom_t2m", "Anomalia di temperatura a 2 m (media del giorno)", "Anomalie",
+  "°C della media del giorno (ore 6, 12, 18, 24 UTC) rispetto alla media 1991-2020, a scala regionale (circa 150 km) · rosso più caldo, blu più freddo",
+  S_ANOM_T, {"italia", "europa"}, lambda c: _anom_t2m(c))
 P("anom_z500", "Anomalia di geopotenziale a 500 hPa", "Anomalie",
   "decametri rispetto alla media 1991-2020 (rosso alta pressione in quota, blu saccature) · isoipse in dam",
   dict(livelli=livelli(-36, 36, 3), cmap=plt.get_cmap("RdBu_r"), extend="both"), {"italia", "europa"},
@@ -422,6 +430,27 @@ P("anom_pressione", "Anomalia di pressione al livello del mare", "Anomalie",
   dict(livelli=livelli(-30, 30, 2), cmap=plt.get_cmap("PuOr_r"), extend="both"), {"italia", "europa"},
   lambda c: dict(campo=_isobare(c, 0) - CL.area("mslp", c),
                  contorni=(_isobare(c, _liscia_isobare(c)), None, _passo_isobare(c))))
+
+
+def _anom_t2m(c):
+    """Anomalia della temperatura media del giorno, confrontata alla scala della rianalisi.
+    Le medie 1991-2020 della rianalisi NCEP/NCAR sono medie giornaliere su celle di circa 200 km, con le
+    montagne spianate: per confrontare cose omogenee la temperatura del modello viene mediata nel giorno
+    (4 orari sinottici) e nello spazio (filtro di circa 150 km), senza correzioni empiriche di quota."""
+    from scipy.ndimage import gaussian_filter
+    if c.t.hour != 0 or (c.t - c.L.corsa).total_seconds() < 18 * 3600 - 1:
+        raise KeyError("una mappa al giorno, alle 24 UTC")
+    media = np.mean([c.t2m()] + [c.prima(h).t2m() for h in (6, 12, 18)], axis=0)
+    lat, lon = c.L.griglie[c.area]
+    passo = abs(float(lat[1] - lat[0]))
+    ok = np.isfinite(media)
+    sig = 0.7 / passo
+    num = gaussian_filter(np.where(ok, media, 0.0), sig, mode="nearest")
+    den = gaussian_filter(ok.astype(float), sig, mode="nearest")
+    liscia = np.where(den > 0.3, num / np.maximum(den, 1e-6), np.nan)
+    from datetime import timedelta
+    clima = CL.su_griglia("t2m", c.t - timedelta(hours=12), lat, lon)
+    return np.where(ok, liscia - clima, np.nan)
 
 
 def _pioggia_norma(c):
@@ -453,7 +482,7 @@ CATEGORIA_DI = {
                           "strato_limite", "temperatura_mare"],
     "Temporali": ["grandine", "cape", "cin", "fulminazioni", "cape_shear", "instabilita_potenziale", "k_index",
                   "total_totals", "showalter", "lifted_index", "shear", "sweat"],
-    "Anomalie": ["anom_t850", "anom_z500", "anom_pressione", "anom_pioggia"],
+    "Anomalie": ["anom_t2m", "anom_t850", "anom_z500", "anom_pressione", "anom_pioggia"],
     "Suolo e agricoltura": ["gelate", "temperatura_suolo", "umidita_suolo", "evapotraspirazione", "incendi"],
 }
 # parametri che hanno senso solo sulla terraferma: il mare li copre
