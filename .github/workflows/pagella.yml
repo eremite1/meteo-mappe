@@ -54,6 +54,9 @@ jobs:
         curl -fsSL --retry 3 -o wrf/fine_d03.npz "$U/fine/d03_tutto.npz" || rm -f wrf/fine_d03.npz
         curl -fsSL --retry 3 -o wrf/gfs_d01.npz "$U/gfs/d01_tutto.npz" || rm -f wrf/gfs_d01.npz
         curl -fsSL --retry 3 -o wrf/gfs_d02.npz "$U/gfs/d02_tutto.npz" || rm -f wrf/gfs_d02.npz
+        for c in iconeu icon2i; do for d in d01 d02; do
+          curl -fsSL --retry 3 -o "wrf/${c}_${d}.npz" "$U/$c/${d}_tutto.npz" || rm -f "wrf/${c}_${d}.npz"
+        done; done
         ls -la wrf
         if [ -f wrf/d01_tutto.npz ]; then
           python - <<'PY'
@@ -65,7 +68,9 @@ jobs:
         if __import__("os").path.exists("radar_punti.csv"):
             for r in csv.DictReader(open("radar_punti.csv", newline="")):
                 st.setdefault(r["id"], (r["id"], float(r["lat"]), float(r["lon"])))
-        altri = [("wrf333m", "wrf/fine_d03.npz"), ("wrfgfs3km", "wrf/gfs_d01.npz"), ("wrfgfs1km", "wrf/gfs_d02.npz")]
+        altri = [("wrf333m", "wrf/fine_d03.npz"), ("wrfgfs3km", "wrf/gfs_d01.npz"), ("wrfgfs1km", "wrf/gfs_d02.npz"),
+                 ("wrficoneu3km", "wrf/iconeu_d01.npz"), ("wrficoneu1km", "wrf/iconeu_d02.npz"),
+                 ("wrficon2i3km", "wrf/icon2i_d01.npz"), ("wrficon2i1km", "wrf/icon2i_d02.npz")]
         out = V.wrf_punti("wrf/d01_tutto.npz", "wrf/d02_tutto.npz", list(st.values()), "punti", altri)
         print("WRF nei punti:", {k: str(v) for k, v in out.items()})
         PY
@@ -116,7 +121,7 @@ jobs:
         # pagella unica: mappe di pioggia di tutti i modelli contro il radar, piu' il riepilogo per la pagina
         G=""; for f in griglie_*.npz; do [ -e "$f" ] && G="$G $(basename "$f" .npz | sed 's/^griglie_//')=$f"; done
         W=""; [ -f wrf/d01_tutto.npz ] && W="--wrf wrf/d01_tutto.npz wrf/d02_tutto.npz"
-        A=""; for kv in wrf333m=wrf/fine_d03.npz wrfgfs3km=wrf/gfs_d01.npz wrfgfs1km=wrf/gfs_d02.npz; do [ -f "${kv#*=}" ] && A="$A $kv"; done
+        A=""; for kv in wrf333m=wrf/fine_d03.npz wrfgfs3km=wrf/gfs_d01.npz wrfgfs1km=wrf/gfs_d02.npz wrficoneu3km=wrf/iconeu_d01.npz wrficoneu1km=wrf/iconeu_d02.npz wrficon2i3km=wrf/icon2i_d01.npz wrficon2i1km=wrf/icon2i_d02.npz; do [ -f "${kv#*=}" ] && A="$A $kv"; done
         [ -n "$A" ] && W="$W --wrf-altri $A"
         R=""; [ -f radar_orario.npz ] && R="--radar radar_orario.npz"
         python -m motore.verifica --storico "$RAMO" $R --griglie $G $W 2>&1 | tee -a registro.txt

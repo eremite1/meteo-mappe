@@ -35,7 +35,9 @@ FASCE_ITALIA = [(0, 12, "0-12 ore"), (12, 24, "12-24 ore"), (24, 48, "24-48 ore"
 # oltre ai modelli: il multimodello (media pesata) e la media semplice, per vedere se i pesi servono
 EXTRA = {"multi": ("Multimodello", "media pesata"), "media": ("Media semplice", "pesi uguali"),
          "wrf3km": ("WRF Nerola 3 km", "3 km"), "wrf1km": ("WRF Nerola 1 km", "1 km"),
-         "wrf333m": ("WRF Nerola 333 m", "333 m"), "wrfgfs3km": ("WRF GFS 3 km", "3 km"), "wrfgfs1km": ("WRF GFS 1 km", "1 km")}
+         "wrf333m": ("WRF Nerola 333 m", "333 m"), "wrfgfs3km": ("WRF GFS 3 km", "3 km"), "wrfgfs1km": ("WRF GFS 1 km", "1 km"),
+         "wrficoneu3km": ("WRF ICON-EU 3 km", "3 km"), "wrficoneu1km": ("WRF ICON-EU 1 km", "1 km"),
+         "wrficon2i3km": ("WRF ICON-2I 3 km", "3 km"), "wrficon2i1km": ("WRF ICON-2I 1 km", "1 km")}
 
 
 def nome_ris(m):
