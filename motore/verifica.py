@@ -498,6 +498,40 @@ def riepilogo(stato, pagella, nomi, adesso):
             "stazioni_giorni": pagella.get("giorni"), "bande": [b for b, _, _ in BANDE], "tipi": list(TIPI)}
 
 
+def grafici(ris, pagella, storico, adesso):
+    """Dati per i grafici delle pagelle:
+    - scadenze: errore medio alle stazioni per fascia di scadenza (Lazio fino a 72 ore, Italia oltre);
+    - nerola: ultimi giorni alla stazione piu' vicina a Nerola, osservato e tutti i modelli;
+    - andamento: errore medio (ultimi 7 giorni, prime 48 ore) giorno per giorno, per vedere come cambia nel tempo."""
+    sc = {}
+    for fonte in (pagella.get("riepilogo") or {}, (pagella.get("italia") or {}).get("riepilogo") or {}):
+        for m, vv in fonte.items():
+            for v in ("T", "V"):
+                for f, x in (vv.get(v) or {}).items():
+                    if not x or not x.get("n") or x["n"] < 30:
+                        continue
+                    da = int(f.split("-")[0])
+                    voci = sc.setdefault(m, {}).setdefault(v, {})
+                    if fonte is pagella.get("riepilogo") or da >= 72:
+                        voci.setdefault(f, {"fascia": f, "da": da, "errore": x["mae"], "tendenza": x["bias"], "casi": x["n"]})
+    ris["scadenze"] = {m: {v: sorted(ff.values(), key=lambda x: x["da"]) for v, ff in vv.items()} for m, vv in sc.items()}
+    vicine = [st for st in pagella.get("stazioni") or [] if st.get("serie") and st.get("dist_km", 99) < 5]
+    if vicine:
+        st = vicine[0]
+        ris["nerola"] = {"stazione": st.get("nome") or st["id"], "dist_km": st.get("dist_km"), "tempi": st["serie"]["tempi"],
+                         "oss": {v: st["serie"]["oss"].get(v) for v in ("T", "V")},
+                         "modelli": {m: {v: x.get(v) for v in ("T", "V")} for m, x in st["serie"]["modelli"].items()}}
+    sp = storico / "verifica" / "andamento.json"
+    sp.parent.mkdir(parents=True, exist_ok=True)
+    storia = json.loads(sp.read_text()) if sp.exists() else {}
+    oggi = adesso.strftime("%Y-%m-%d")
+    storia[oggi] = {m: {v: x[v]["errore"] for v in ("T", "V") if v in x} for m, x in (ris.get("stazioni") or {}).items()}
+    limite = (adesso - timedelta(days=120)).strftime("%Y-%m-%d")
+    storia = {g: v for g, v in sorted(storia.items()) if g >= limite}
+    sp.write_text(json.dumps(storia, separators=(",", ":")))
+    ris["andamento"] = storia
+
+
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--storico", required=True)
@@ -546,6 +580,10 @@ def main():
     if a.nomi:
         nomi.update(json.loads(a.nomi))
     ris = riepilogo(stato, pagella, nomi, adesso)
+    try:
+        grafici(ris, pagella, Path(a.storico), adesso)
+    except Exception as e:  # noqa: BLE001
+        print("ATTENZIONE: dati dei grafici non pronti:", e)
     (Path(a.storico) / "pagelle.json").write_text(json.dumps(ris, ensure_ascii=False, separators=(",", ":")))
     print("classifica:", ", ".join(f"{x['modello']} {x['voto']}" for x in ris["classifica"]))
 
