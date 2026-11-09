@@ -174,6 +174,11 @@ def calcola(out):
             m, lat, lon = scarica_tcwv(g, h, p)
             membri = m if membri is None else membri + m
         membri /= len(passi)                                   # media del giorno, membro per membro
+        # stessa scala del clima: la rianalisi ha celle di circa 250 km e montagne spianate, quindi anche
+        # l'ensemble si media su circa 150 km (altrimenti sopra i rilievi, dove la colonna d'aria e' piu' corta,
+        # l'EFI risulterebbe falsamente basso)
+        from scipy.ndimage import gaussian_filter
+        membri = gaussian_filter(membri, sigma=(0, 6, 6), mode="nearest")
         centro = corsa + timedelta(hours=24 * (d - 1) + 15)
         q = clima_giorno(centro, lat, lon)
         e, sot = efi(membri, q)
