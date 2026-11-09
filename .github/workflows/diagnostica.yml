@@ -8,22 +8,12 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
-    - run: sudo apt-get install -y -qq libeccodes-tools > /dev/null 2>&1; pip install -q requests
     - name: Prove
       shell: python
       run: |
-        import requests, subprocess
+        import requests
         B = "https://meteohub.agenziaitaliameteo.it/api/"
-        for d in ["MOLOCH", "MOLOCH_AIM"]:
+        for d in ["MOLOCH", "MOLOCH_AIM", "ICON_2I_SURFACE_PRESSURE_LEVELS", "BOLAM"]:
             j = requests.get(B + "datasets/" + d + "/opendata", timeout=60).json()
-            print(d, [(x["date"], x["run"]) for x in j][:10])
-            if not j: continue
-            f = j[0]["filename"]
-            for u in [B + "opendata/" + f, B + "datasets/" + d + "/opendata/" + f]:
-                r = requests.get(u, timeout=900, stream=True)
-                print(u, r.status_code, r.headers.get("content-length"))
-                if r.status_code == 200:
-                    with open("/tmp/m.grib", "wb") as o:
-                        for ch in r.iter_content(1 << 20): o.write(ch)
-                    break
-            print(subprocess.run("ls -l /tmp/m.grib; grib_ls -p shortName,typeOfLevel,level,stepType,stepRange,stepUnits,gridType,Ni,Nj,units /tmp/m.grib | head -40; grib_ls -p shortName,stepRange /tmp/m.grib | awk '{print $1}' | sort | uniq -c; grib_ls -p stepRange /tmp/m.grib | sort -u | tr '\\n' ' '; grib_dump -O -w count=1 /tmp/m.grib | grep -i -E 'latitudeOfFirst|longitudeOfFirst|latitudeOfLast|longitudeOfLast|southPole|iDirection|jDirection|angleOfRotation'", shell=True, capture_output=True, text=True).stdout[:6000])
+            date = sorted({(x.get("date"), x.get("run")) for x in j})
+            print(d, len(j), "piu' recenti:", date[-6:], "esempio:", j[-1] if j else None)
