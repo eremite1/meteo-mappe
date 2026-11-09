@@ -468,14 +468,14 @@ def riepilogo(stato, pagella, nomi, adesso):
         if mm:
             eventi.append({"giorno": g, "tipo": max(e["tipi"], key=e["tipi"].get), "modelli": mm})
     # stazioni (da pagella.json)
-    punti = {}
+    punti, fisica = {}, {}
     for m, riep in (pagella.get("riepilogo") or {}).items():
         v = voto_punti(riep)
         if v:
-            punti[m] = v
+            (fisica if m.startswith("fis_") else punti)[m] = v
     # classifica generale: media dei voti disponibili (pioggia sulle mappe 30 giorni prime 48 ore, temperatura, vento)
     gen = []
-    for m in modelli:
+    for m in [x for x in modelli if not x.startswith("fis_")]:
         p = (periodi["30"].get(m, {}).get("tutti", {}))
         pioggia = None
         cc = [x for b, x in p.items() if b in ("0-24", "24-48")]
@@ -495,6 +495,8 @@ def riepilogo(stato, pagella, nomi, adesso):
     gen.sort(key=lambda x: (not x["completo"], -x["voto"]))
     return {"aggiornato": iso(adesso), "modelli": [{"id": m, **nomi.get(m, {"nome": m, "ris": ""})} for m in modelli],
             "classifica": gen, "pioggia": periodi, "eventi": eventi, "stazioni": punti,
+            "fisica": {m: dict(v, scadenze={k: x for k, x in ((pagella.get("riepilogo") or {}).get(m, {}).get("T") or {}).items()})
+                       for m, v in fisica.items()},
             "stazioni_giorni": pagella.get("giorni"), "bande": [b for b, _, _ in BANDE], "tipi": list(TIPI)}
 
 
@@ -506,6 +508,8 @@ def grafici(ris, pagella, storico, adesso):
     sc = {}
     for fonte in (pagella.get("riepilogo") or {}, (pagella.get("italia") or {}).get("riepilogo") or {}):
         for m, vv in fonte.items():
+            if m.startswith("fis_"):
+                continue
             for v in ("T", "V"):
                 for f, x in (vv.get(v) or {}).items():
                     if not x or not x.get("n") or x["n"] < 30:
@@ -520,7 +524,8 @@ def grafici(ris, pagella, storico, adesso):
         st = vicine[0]
         ris["nerola"] = {"stazione": st.get("nome") or st["id"], "dist_km": st.get("dist_km"), "tempi": st["serie"]["tempi"],
                          "oss": {v: st["serie"]["oss"].get(v) for v in ("T", "V")},
-                         "modelli": {m: {v: x.get(v) for v in ("T", "V")} for m, x in st["serie"]["modelli"].items()}}
+                         "modelli": {m: {v: x.get(v) for v in ("T", "V")} for m, x in st["serie"]["modelli"].items()
+                                     if not m.startswith("fis_")}}
     sp = storico / "verifica" / "andamento.json"
     sp.parent.mkdir(parents=True, exist_ok=True)
     storia = json.loads(sp.read_text()) if sp.exists() else {}

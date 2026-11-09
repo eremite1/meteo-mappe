@@ -54,6 +54,12 @@ jobs:
         curl -fsSL --retry 3 -o wrf/fine_d03.npz "$U/fine/d03_tutto.npz" || rm -f wrf/fine_d03.npz
         curl -fsSL --retry 3 -o wrf/gfs_d01.npz "$U/gfs/d01_tutto.npz" || rm -f wrf/gfs_d01.npz
         curl -fsSL --retry 3 -o wrf/gfs_d02.npz "$U/gfs/d02_tutto.npz" || rm -f wrf/gfs_d02.npz
+        # varianti di fisica (ramo "fisica" di wrf-nerola)
+        F=https://raw.githubusercontent.com/eremite1/wrf-nerola/fisica
+        mkdir -p wrf/fisica
+        for f in $(curl -fsSL "$F/indice.json" 2>/dev/null | python3 -c "import json,sys;print(' '.join(json.load(sys.stdin).get('file',[])))" 2>/dev/null); do
+          curl -fsSL --retry 3 -o "wrf/fisica/$f" "$F/$f" || rm -f "wrf/fisica/$f"
+        done
         for c in iconeu icon2i; do for d in d01 d02; do
           curl -fsSL --retry 3 -o "wrf/${c}_${d}.npz" "$U/$c/${d}_tutto.npz" || rm -f "wrf/${c}_${d}.npz"
         done; done
@@ -71,6 +77,8 @@ jobs:
         altri = [("wrf333m", "wrf/fine_d03.npz"), ("wrfgfs3km", "wrf/gfs_d01.npz"), ("wrfgfs1km", "wrf/gfs_d02.npz"),
                  ("wrficoneu3km", "wrf/iconeu_d01.npz"), ("wrficoneu1km", "wrf/iconeu_d02.npz"),
                  ("wrficon2i3km", "wrf/icon2i_d01.npz"), ("wrficon2i1km", "wrf/icon2i_d02.npz")]
+        import glob, os
+        altri += [("fis_" + os.path.basename(f)[:-4], f) for f in sorted(glob.glob("wrf/fisica/*.npz"))]
         out = V.wrf_punti("wrf/d01_tutto.npz", "wrf/d02_tutto.npz", list(st.values()), "punti", altri)
         print("WRF nei punti:", {k: str(v) for k, v in out.items()})
         PY
