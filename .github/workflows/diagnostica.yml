@@ -11,9 +11,20 @@ jobs:
     - name: Prove
       shell: python
       run: |
-        import requests
-        B = "https://meteohub.agenziaitaliameteo.it/api/"
-        for d in ["MOLOCH", "MOLOCH_AIM", "ICON_2I_SURFACE_PRESSURE_LEVELS", "BOLAM"]:
-            j = requests.get(B + "datasets/" + d + "/opendata", timeout=60).json()
-            date = sorted({(x.get("date"), x.get("run")) for x in j})
-            print(d, len(j), "piu' recenti:", date[-6:], "esempio:", j[-1] if j else None)
+        import requests, re
+        B = "https://data.ecmwf.int/forecasts/"
+        r = requests.get(B, timeout=60); d = sorted(re.findall(r'href="[^"]*?(\d{8})/"', r.text))[-1]
+        print("ultimo giorno", d)
+        for p in [f"{d}/", f"{d}/00z/", f"{d}/00z/ifs/", f"{d}/00z/ifs/0p25/", f"{d}/00z/ifs/0p25/enfo/", f"{d}/00z/aifs-ens/0p25/"]:
+            r = requests.get(B + p, timeout=60)
+            print("==", p, r.status_code, sorted(set(re.findall(r'href="[^"]*/([^"/]+/?)"', r.text)))[:60])
+        r = requests.get(B + f"{d}/00z/ifs/0p25/enfo/", timeout=60)
+        idx = [x for x in re.findall(r'href="([^"]+\.index)"', r.text)]
+        print("indici enfo", len(idx), idx[:5])
+        tipi = {}
+        for u in idx[:200]:
+            t = requests.get("https://data.ecmwf.int" + u if u.startswith("/") else B + f"{d}/00z/ifs/0p25/enfo/" + u, timeout=60).text
+            for riga in t.splitlines():
+                m = re.search(r'"type": "(\w+)".*?"param": "(\w+)"', riga)
+                if m: tipi.setdefault(m.group(1), set()).add(m.group(2))
+        print({k: sorted(v) for k, v in tipi.items()})
