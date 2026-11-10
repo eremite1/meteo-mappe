@@ -119,13 +119,28 @@ def pesi(pag, var, presenti):
     return {m: v / s for m, v in w.items()}
 
 
+SFUMA_CELLE = 20      # ~10 km: vicino al bordo del suo territorio un modello pesa sempre meno
+
+
+def _rampa(ok):
+    """1 all'interno del territorio del modello, scende a 0 avvicinandosi al bordo (niente tagli netti)."""
+    if ok.all():
+        return 1.0
+    if not ok.any():
+        return 0.0
+    from scipy.ndimage import distance_transform_edt
+    return np.clip(distance_transform_edt(ok) / SFUMA_CELLE, 0.0, 1.0)
+
+
 def media(campi, w):
-    """Media pesata cella per cella; dove un modello manca, si usano gli altri."""
+    """Media pesata cella per cella; dove un modello manca, si usano gli altri.
+    Vicino al bordo del territorio di un modello (es. AROME) il suo peso sfuma gradualmente."""
     num = den = None
     for m, c in campi.items():
         ok = np.isfinite(c)
-        x = np.where(ok, c, 0.0) * w[m]
-        d = ok * w[m]
+        r = _rampa(ok)
+        x = np.where(ok, c, 0.0) * w[m] * r
+        d = ok * w[m] * r
         num = x if num is None else num + x
         den = d if den is None else den + d
     return np.where(den > 0, num / np.where(den > 0, den, 1), np.nan)

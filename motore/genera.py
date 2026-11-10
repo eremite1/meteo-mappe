@@ -726,10 +726,13 @@ class Lavoro:
             tempi = [t for t in self.tempi[ds] if t <= t_lim]
             for nome in VAR_ACCUMULO:
                 cum, s, lat, lon = [], None, None, None
+                visto = None          # celle dove il modello ha dato almeno un valore vero
                 for t in tempi:
                     d = self.dati(ds, area, t)
                     if d is not None and d.ha(nome):
                         lat, lon, val = d.leggi(nome)
+                        ok = np.isfinite(val)
+                        visto = ok.copy() if visto is None else (visto | ok)
                         val = np.nan_to_num(np.clip(val, 0, None))
                         s = val.copy() if s is None else s + val
                     cum.append(None if s is None else s.copy())
@@ -737,6 +740,10 @@ class Lavoro:
                 if s is None:
                     continue
                 cum = [c if c is not None else np.zeros_like(s) for c in cum]
+                # fuori dal territorio del modello (es. AROME a sud-est) il dato resta "mancante",
+                # non "0 mm": altrimenti nel multimodello taglia di netto la pioggia degli altri
+                if visto is not None and not visto.all():
+                    cum = [np.where(visto, c, np.nan).astype(np.float32) for c in cum]
                 self._cum[(ds, area, nome)] = (cum, tempi)
                 self.coord_cum[(ds, area)] = (lat, lon)
 
