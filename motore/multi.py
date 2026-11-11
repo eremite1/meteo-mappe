@@ -175,6 +175,53 @@ _M = {}
 PUNTI_DA = {"T": "temperatura", "Td": "rugiada", "V": "vento", "P": "pioggia"}
 
 
+# ---------------------------------------------------------------------------
+# Risoluzione uniforme: la "forma" della mappa segue i pesi della pagella,
+# il dettaglio fine (rilievi, piccole celle) viene sempre dai modelli ad alta risoluzione.
+# Cosi' la nitidezza non cambia quando cambiano i pesi.
+# ---------------------------------------------------------------------------
+CELLA_KM = {"lazio": 0.5, "italia": 3.0, "europa": 20.0}
+SCALA_KM = 14.0          # sotto questa scala comanda il dettaglio dei modelli fini (~ maglia del modello piu' grossolano)
+ALTA_RIS_KM = 3.0        # modelli considerati "ad alta risoluzione" (ICON-2I, AROME)
+
+
+def _ris_km(m):
+    try:
+        return float(MODELLI[m]["ris"].split()[0].replace(",", "."))
+    except Exception:
+        return 10.0
+
+
+def _passa_basso(c, sg):
+    """Media mobile gaussiana che ignora le celle senza dati."""
+    from scipy.ndimage import gaussian_filter
+    ok = np.isfinite(c)
+    den = gaussian_filter(ok.astype(np.float32), sg, mode="nearest")
+    num = gaussian_filter(np.where(ok, c, 0.0).astype(np.float32), sg, mode="nearest")
+    return np.where(ok & (den > 1e-3), num / np.maximum(den, 1e-3), np.nan)
+
+
+def media_armonica(campi, w, moltiplicativo=False):
+    """Come media(), ma con la stessa nitidezza qualunque siano i pesi."""
+    sg = SCALA_KM / 2.0 / CELLA_KM.get(AREA, 3.0)
+    fini = [m for m in campi if _ris_km(m) <= ALTA_RIS_KM]
+    if sg < 1.0 or not fini:
+        return media(campi, w)                      # griglia gia' grossolana o nessun modello fine
+    basso = {m: _passa_basso(c, sg) for m, c in campi.items()}
+    forma = media(basso, w)                          # la forma generale: decisa dalla pagella
+    alto = media({m: campi[m] for m in fini}, {m: 1.0 for m in fini})
+    alto_b = media({m: basso[m] for m in fini}, {m: 1.0 for m in fini})
+    if moltiplicativo:                               # pioggia/neve: il dettaglio e' un rapporto (mai negativo)
+        e = 0.3
+        rapporto = np.clip((alto + e) / (alto_b + e), 0.2, 4.0)
+        out = forma * np.where(np.isfinite(rapporto), rapporto, 1.0)
+    else:                                            # temperatura ecc.: il dettaglio si somma
+        out = forma + np.where(np.isfinite(alto - alto_b), alto - alto_b, 0.0)
+    if all(np.nanmin(c) >= 0 for c in campi.values() if np.isfinite(c).any()):
+        out = np.clip(out, 0, None)
+    return np.where(np.isfinite(forma), out, np.nan)
+
+
 def _avvia():
     from .disegno import Disegnatore
     la, lo = _M["griglia"]
@@ -250,7 +297,7 @@ def _fai(compito):
         w = pesi(pag, PESO_DA[p["id"]], {m: presenti[m] for m in campi})
         w = dissolvenza(w, t)
         try:
-            campo = media(campi, w)
+            campo = media_armonica(campi, w, moltiplicativo=PESO_DA[p["id"]] == "P" and not p["id"].startswith("anom"))
             for v, pid in PUNTI_DA.items():
                 if pid == p["id"]:
                     medie[v] = {"pesata": campo, "uguali": media(campi, {m: 1.0 for m in campi})}
