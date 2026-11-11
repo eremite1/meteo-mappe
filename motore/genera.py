@@ -441,7 +441,12 @@ class Contesto:
         interp = self.L.interpolatore(ds, self.area, lat, lon)
         campo = interp(val) if self.L.info[ds]["ridotta"] else interp(val, "linear")
         dentro = np.isfinite(campo)
-        campo = np.clip(gaussian_filter(np.nan_to_num(campo), 1.0 if self.area == "lazio" else 0.6), 0, None)
+        # lisciatura che ignora le celle senza dati (prima le contava come 0 mm e scuriva i bordi del modello)
+        sg = 1.0 if self.area == "lazio" else 0.6
+        ok = np.isfinite(campo)
+        den = gaussian_filter(ok.astype(np.float32), sg)
+        campo = np.clip(np.where(den > 1e-3, gaussian_filter(np.where(ok, campo, 0.0), sg) / np.maximum(den, 1e-3), np.nan), 0, None)
+        campo = np.where(ok, campo, np.nan)
         if self.ha("temperature_2m"):
             dentro &= np.isfinite(self.v("temperature_2m"))
         return np.where(dentro, campo, np.nan)

@@ -79,6 +79,16 @@ def errore(pag, modello, var, ore):
     # pagella del Lazio (sezione principale) oppure quella "italia" (griglia Italia, con ICON-EU)
     sez = pag if _M.get("sezione", "lazio") == "lazio" else (pag.get("italia") or {})
     r = (sez.get("riepilogo") or {}).get(modello, {}).get(var) or {}
+    # errore che cambia GRADUALMENTE con le ore: interpolo tra i centri delle fasce che hanno dati
+    # (prima i pesi cambiavano di colpo al passaggio da una fascia all'altra, es. a +12 h o +24 h)
+    punti = []
+    for a, b, nome in FASCE:
+        s = r.get(nome)
+        if s and s.get("n", 0) >= N_MINIMO and s.get("mae"):
+            punti.append(((a + b) / 2, s["mae"]))
+    if len(punti) >= 2:
+        xs, ys = zip(*punti)
+        return float(np.interp(ore, xs, ys))
     f = fascia_di(ore)
     s = r.get(f)
     if s and s.get("n", 0) >= N_MINIMO and s.get("mae"):
@@ -117,6 +127,20 @@ def pesi(pag, var, presenti):
         w = {m: 1.0 for m in presenti}
     s = sum(w.values())
     return {m: v / s for m, v in w.items()}
+
+
+def dissolvenza(w, t):
+    """Un modello che sta per finire (es. AROME dopo circa 42-51 ore) non sparisce di colpo:
+    nelle sue ultime 9 ore il suo peso scende gradualmente. Pesi rinormalizzati a somma 1."""
+    fine = _M.get("fine") or {}
+    x = {}
+    for m, v in w.items():
+        if m in fine:
+            rimaste = (fine[m] - t).total_seconds() / 3600
+            v = v * float(np.clip((rimaste + PASSO) / (4 * PASSO), 0.25, 1.0))
+        x[m] = v
+    s = sum(x.values()) or 1.0
+    return {m: v / s for m, v in x.items()}
 
 
 SFUMA_CELLE = 20      # ~10 km: vicino al bordo del suo territorio un modello pesa sempre meno
@@ -224,6 +248,7 @@ def _fai(compito):
         if len(campi) < 2:
             continue
         w = pesi(pag, PESO_DA[p["id"]], {m: presenti[m] for m in campi})
+        w = dissolvenza(w, t)
         try:
             campo = media(campi, w)
             for v, pid in PUNTI_DA.items():
@@ -323,6 +348,15 @@ def esegui(area="lazio", processi=None):
 
     pag = carica_pagella()
     stazioni = G.carica_stazioni(*griglia) if AREA in ("lazio", "italia") else []
+    fine = {}
+    for m, L in lavori.items():
+        ist = [x[2] for x in L.istanti(AREA)]
+        if ist:
+            fine[m] = max(ist)
+    # un modello che arriva fino all'ultima ora elaborata non "finisce": niente dissolvenza
+    ultimo = max(t for t, h in compiti) if compiti else None
+    fine = {m: f for m, f in fine.items() if ultimo is None or f < ultimo}
+    _M.update(fine=fine)
     _M.update(lavori=lavori, pagella=pag, corsa=ref, griglia=griglia, scale=scale, sezione=conf["pagella"],
               stazioni=stazioni, terreno=terreno, ombra=terreno["ombra"] if terreno is not None else None)
     _avvia()
