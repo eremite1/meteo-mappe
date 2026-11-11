@@ -575,6 +575,11 @@ def main():
     if a.radar and Path(a.radar).exists():
         nuovi, stato = confronta(a.storico, radar_3ore(a.radar), adesso)
         print(f"confronti nuovi con il radar: {nuovi}")
+        try:   # tavola giornaliera: pioggia del radar contro tutti i modelli, a occhio
+            from motore import tavola
+            print("tavole della pioggia disegnate:", tavola.aggiorna(a.storico, radar_3ore(a.radar), adesso))
+        except Exception as e:  # noqa: BLE001
+            print("ATTENZIONE: tavola della pioggia non pronta:", e)
     else:
         sp = Path(a.storico) / "verifica" / "stato.json"
         stato = json.loads(sp.read_text()) if sp.exists() else {}
