@@ -257,7 +257,16 @@ def archivia(cartella, chiave, percorso):
             campi.append(comprimi(np.clip(cum[pos[t]] - prima, 0, None)))
     if not campi:
         return None
-    np.savez_compressed(nome, chiave=chiave, corsa=iso(corsa), fini=np.array(fini), mm=np.stack(campi))
+    # pioggia ora per ora (prime 48 ore), per la classifica ottica sulla pioggia "istantanea"
+    fini1, campi1 = [], []
+    for h in range(1, 49):
+        t, t0 = corsa + timedelta(hours=h), corsa + timedelta(hours=h - 1)
+        if t in pos and (t0 in pos or h == 1):
+            prima = cum[pos[t0]] if t0 in pos else np.zeros_like(cum[0])
+            fini1.append(iso(t))
+            campi1.append(comprimi(np.clip(cum[pos[t]] - prima, 0, None)))
+    extra = {"fini1": np.array(fini1), "mm1": np.stack(campi1)} if len(campi1) >= 24 else {}
+    np.savez_compressed(nome, chiave=chiave, corsa=iso(corsa), fini=np.array(fini), mm=np.stack(campi), **extra)
     return nome.name
 
 
@@ -580,6 +589,18 @@ def main():
             print("tavole della pioggia disegnate:", tavola.aggiorna(a.storico, radar_3ore(a.radar), adesso))
         except Exception as e:  # noqa: BLE001
             print("ATTENZIONE: tavola della pioggia non pronta:", e)
+        try:   # classifica ottica: tutti i modelli e i WRF sovrapposti al radar, pioggia oraria e accumuli
+            from motore import ottica, tavola
+            n_ott, st_ott = ottica.aggiorna(a.storico, radar_3ore(a.radar), adesso)
+            pg = json.loads((Path(a.storico) / "pagella.json").read_text()) if (Path(a.storico) / "pagella.json").exists() else {}
+            nomi_o = dict(tavola.NOMI)
+            nomi_o.update({m["id"]: m["nome"] for m in pg.get("modelli", [])})
+            nomi_o.update({k: ottica.nome_variante(k) for k in st_ott.get("somme", {}) if k.startswith("wrffis_")})
+            ro = ottica.riepilogo(st_ott, nomi_o, adesso)
+            (Path(a.storico) / "ottica.json").write_text(json.dumps(ro, ensure_ascii=False, separators=(",", ":")))
+            print(f"classifica ottica: {n_ott} confronti nuovi; " + ", ".join(f"{r['nome']} {r['voto']}" for r in ro["periodi"]["7"][:8]))
+        except Exception as e:  # noqa: BLE001
+            print("ATTENZIONE: classifica ottica non pronta:", e)
     else:
         sp = Path(a.storico) / "verifica" / "stato.json"
         stato = json.loads(sp.read_text()) if sp.exists() else {}

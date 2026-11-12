@@ -130,6 +130,8 @@ jobs:
         G=""; for f in griglie_*.npz; do [ -e "$f" ] && G="$G $(basename "$f" .npz | sed 's/^griglie_//')=$f"; done
         W=""; [ -f wrf/d01_tutto.npz ] && W="--wrf wrf/d01_tutto.npz wrf/d02_tutto.npz"
         A=""; for kv in wrf333m=wrf/fine_d03.npz wrfgfs3km=wrf/gfs_d01.npz wrfgfs1km=wrf/gfs_d02.npz wrficoneu3km=wrf/iconeu_d01.npz wrficoneu1km=wrf/iconeu_d02.npz wrficon2i3km=wrf/icon2i_d01.npz wrficon2i1km=wrf/icon2i_d02.npz; do [ -f "${kv#*=}" ] && A="$A $kv"; done
+        # le 16 varianti di fisica (WRF 3 km con metodi di calcolo diversi)
+        for f in wrf/fisica/*.npz; do [ -e "$f" ] && A="$A wrffis_$(basename "$f" .npz)=$f"; done
         [ -n "$A" ] && W="$W --wrf-altri $A"
         R=""; [ -f radar_orario.npz ] && R="--radar radar_orario.npz"
         python -m motore.verifica --storico "$RAMO" $R --griglie $G $W 2>&1 | tee -a registro.txt

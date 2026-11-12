@@ -43,6 +43,8 @@ def previsione_del_giorno(arch, giorno):
             corsa = datetime.strptime(corsa_s, "%Y%m%d%H").replace(tzinfo=timezone.utc)
         except ValueError:
             continue
+        if chiave.startswith("wrffis_"):
+            continue                                   # varianti di fisica: sono nella classifica ottica, non nella tavola
         if corsa >= giorno or corsa < giorno - timedelta(hours=48):
             continue
         if chiave in migliori and migliori[chiave][0] >= corsa:
