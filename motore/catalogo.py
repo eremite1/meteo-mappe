@@ -28,8 +28,11 @@ MODELLI = {
                   fonti={"lazio": ["ecmwf_ifs", "ecmwf_ifs025"],
                          "italia": ["ecmwf_ifs", "ecmwf_ifs025"],
                          "europa": ["ecmwf_ifs025"]},
-                  # Europa fino a 15 giorni (dopo 144 ore i dati sono ogni 6 ore: le mappe seguono da sole)
-                  aree={"lazio": (3, 72), "italia": (3, 168), "europa": (3, 360)}),
+                  # Europa fino a 15 giorni (dopo 144 ore i dati sono ogni 6 ore: le mappe seguono da sole).
+                  # Le corse delle 06 e 18 arrivano solo a 144 ore: per l'Europa si usa sempre l'ultima corsa lunga (00 o 12)
+                  aree={"lazio": (3, 72), "italia": (3, 168), "europa": (3, 360)},
+                  min_ore_aree={"europa": 300},
+                  ris_aree={"europa": "0,25° ≈ 25 km"}),
     "ukmo": dict(nome="UKMO", ris="10 km", sigma=14, min_ore=90,
                  fonti={"*": ["ukmo_global_deterministic_10km"]},
                  aree={"lazio": (3, 72), "italia": (3, 168), "europa": (3, 168)}),

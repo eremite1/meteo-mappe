@@ -51,17 +51,21 @@ def _ore(vt):
 _scelte = {}
 
 
-def scegli_corsa(modello):
-    """La corsa più recente, completa e abbastanza lunga, disponibile per tutti i dataset del modello.
+def scegli_corsa(modello, area=None):
+    """La corsa più recente, completa e abbastanza lunga, disponibile per tutti i dataset del modello
+    (o della sola area indicata: un'area può chiedere corse più lunghe, es. ECMWF Europa).
     Restituisce {dataset: info} oppure None."""
-    if modello in _scelte:
-        return _scelte[modello]
+    chiave = (modello, area)
+    if chiave in _scelte:
+        return _scelte[chiave]
     from datetime import timedelta
     cfg = MODELLI[modello]
-    dataset = sorted({d for a in cfg["aree"] for d in fonti_di(modello, a)})
+    aree = [area] if area else list(cfg["aree"])
+    dataset = sorted({d for a in aree for d in fonti_di(modello, a)})
+    min_ore = max(cfg.get("min_ore_aree", {}).get(a, cfg["min_ore"]) for a in aree)
     basi = {d: fonti.ultimo(d) for d in dataset}
     if any(b is None for b in basi.values()):
-        _scelte[modello] = None
+        _scelte[chiave] = None
         return None
     # candidati: dalla più vecchia "ultima corsa" dei dataset, indietro di 3 ore alla volta per 36 ore
     t0 = min(datetime.fromisoformat(b["reference_time"][:16]) for b in basi.values())
@@ -70,19 +74,19 @@ def scegli_corsa(modello):
         infos = {}
         for d in dataset:
             j = fonti.info_corsa(d, c, basi[d])
-            if j is None or _ore(j["valid_times"]) < cfg["min_ore"]:
+            if j is None or _ore(j["valid_times"]) < min_ore:
                 infos = None
                 break
             infos[d] = j
         if infos:
-            _scelte[modello] = infos
+            _scelte[chiave] = infos
             return infos
-    _scelte[modello] = None
+    _scelte[chiave] = None
     return None
 
 
-def corsa_disponibile(modello):
-    infos = scegli_corsa(modello)
+def corsa_disponibile(modello, area=None):
+    infos = scegli_corsa(modello, area)
     if not infos:
         return None
     rt = next(iter(infos.values()))["reference_time"]
@@ -96,8 +100,8 @@ def da_aggiornare(scelta="auto", forza=False):
         candidati = [m.strip() for m in scelta.split(",") if m.strip() in MODELLI]
     out = []
     for m in candidati:
-        nuova = corsa_disponibile(m)
         for a in MODELLI[m]["aree"]:
+            nuova = corsa_disponibile(m, a)
             vecchia = corsa_pubblicata(m, a)
             print(f"{m}/{a}: disponibile {nuova} · pubblicata {vecchia}", file=sys.stderr)
             if nuova and (forza or scelta not in ("auto", "") or nuova != vecchia):

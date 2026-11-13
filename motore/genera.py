@@ -536,7 +536,7 @@ class Lavoro:
         self.fonti = {a: fonti_di(chiave, a) for a in self.aree}
         self.dataset = sorted({d for a in self.aree for d in self.fonti[a]})
         from .controlla import scegli_corsa
-        scelta = scegli_corsa(chiave)
+        scelta = scegli_corsa(chiave, self.aree[0] if len(self.aree) == 1 else None)
         if not scelta:
             raise RuntimeError("nessuna corsa completa e abbastanza lunga disponibile")
         self.info = {d: scelta[d] for d in self.dataset}
@@ -809,9 +809,9 @@ def _fai_istante(compito):
                 if p["id"] in ("pioggia", "pioggia_isobare", "rovesci", "neve") and h > 0:
                     passo_eff = L.passo[area]
                     unita = unita.replace("nelle ore precedenti", f"nelle {passo_eff} ore precedenti" if passo_eff > 1 else "nell'ora precedente")
-                info = f"Modello {L.cfg['nome']} ({L.cfg['ris']}) · corsa {L.corsa:%d/%m %H} UTC · ora italiana ({ora_utc})"
+                info = f"Modello {L.cfg['nome']} ({L.cfg.get('ris_aree', {}).get(area, L.cfg['ris'])}) · corsa {L.corsa:%d/%m %H} UTC · ora italiana ({ora_utc})"
                 if p["id"] in ("temperatura", "delta_t24", "percepita", "bulbo_umido", "gelate", "incendi") and area == "lazio" and L.terreno is not None:
-                    info = f"Modello {L.cfg['nome']} ({L.cfg['ris']}) · dettaglio del terreno a 500 m · corsa {L.corsa:%d/%m %H} UTC"
+                    info = f"Modello {L.cfg['nome']} ({L.cfg.get('ris_aree', {}).get(area, L.cfg['ris'])}) · dettaglio del terreno a 500 m · corsa {L.corsa:%d/%m %H} UTC"
                 nome = f"{p['id']}_h{h:03d}.png"
                 dis.disegna(os.path.join(cartella, nome), campo, p, L.cfg["nome"], data,
                             f"+{h}h", info, contorni=contorni, frecce=frecce, unita=unita)
@@ -929,7 +929,7 @@ def esegui(chiave, max_istanti=None, processi=None, aree=None):
 
     # indice
     corsa_txt = L.corsa.strftime("%Y-%m-%dT%H:%MZ")
-    indice = dict(modello=chiave, nome=L.cfg["nome"], risoluzione=L.cfg["ris"],
+    indice = dict(modello=chiave, nome=L.cfg["nome"], risoluzione=L.cfg.get("ris_aree", {}).get(L.aree[0], L.cfg["ris"]) if len(L.aree) == 1 else L.cfg["ris"],
                   corsa=corsa_txt, corse={a: corsa_txt for a in L.aree},
                   aggiornato_utc=datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%MZ"),
                   aree={}, diagnostica=diag)
