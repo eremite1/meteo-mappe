@@ -28,17 +28,18 @@ MODELLI = {
                   fonti={"lazio": ["ecmwf_ifs", "ecmwf_ifs025"],
                          "italia": ["ecmwf_ifs", "ecmwf_ifs025"],
                          "europa": ["ecmwf_ifs025"]},
-                  aree={"lazio": (3, 72), "italia": (3, 168), "europa": (3, 168)}),
+                  # Europa fino a 15 giorni (dopo 144 ore i dati sono ogni 6 ore: le mappe seguono da sole)
+                  aree={"lazio": (3, 72), "italia": (3, 168), "europa": (3, 360)}),
     "ukmo": dict(nome="UKMO", ris="10 km", sigma=14, min_ore=90,
                  fonti={"*": ["ukmo_global_deterministic_10km"]},
                  aree={"lazio": (3, 72), "italia": (3, 168), "europa": (3, 168)}),
     "gfs": dict(nome="GFS", ris="13 km", sigma=18, min_ore=90,
                 fonti={"lazio": ["ncep_gfs013", "ncep_gfs025"], "italia": ["ncep_gfs013", "ncep_gfs025"],
                        "europa": ["ncep_gfs013", "ncep_gfs025"]},
-                aree={"lazio": (3, 72), "italia": (3, 168), "europa": (3, 168)}),
+                aree={"lazio": (3, 72), "italia": (3, 168), "europa": (3, 384)}),   # Europa fino a 16 giorni
     "iconeu": dict(nome="ICON-EU", ris="7 km", sigma=10, min_ore=90,
                    fonti={"*": ["dwd_icon_eu"]},
-                   aree={"italia": (3, 168), "europa": (3, 168)}),
+                   aree={"italia": (3, 120), "europa": (3, 120)}),   # ICON-EU arriva a 120 ore
 }
 
 
