@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="it">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>EFI vapore acqueo</title>
+<style>
+:root { --sfondo:#f6f7f9; --carta:#fff; --testo:#1d2430; --muto:#5c6878; --bordo:#e1e5ea; --accento:#1f6fb2; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { --sfondo:#12161c; --carta:#1b2129; --testo:#e6eaef; --muto:#9aa6b4; --bordo:#2c3540; --accento:#5aa9e6; } }
+:root[data-theme="dark"] { --sfondo:#12161c; --carta:#1b2129; --testo:#e6eaef; --muto:#9aa6b4; --bordo:#2c3540; --accento:#5aa9e6; }
+* { box-sizing: border-box; }
+body { margin:0; background:var(--sfondo); color:var(--testo); font:15px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+.wrap { max-width:1000px; margin:0 auto; padding:16px; }
+.card { background:var(--carta); border:1px solid var(--bordo); border-radius:12px; padding:14px; margin-bottom:12px; }
+.bott { display:flex; gap:6px; flex-wrap:wrap; margin-bottom:10px; }
+.bott button { border:1px solid var(--bordo); background:var(--carta); color:var(--testo); border-radius:20px; padding:6px 13px; font:inherit; cursor:pointer; }
+.bott button[aria-pressed="true"] { background:var(--accento); color:#fff; border-color:var(--accento); }
+img { width:100%; height:auto; border-radius:8px; border:1px solid var(--bordo); background:#fff; }
+.nota { color:var(--muto); font-size:.88rem; }
+.nerola { font-size:1.05rem; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="card">
+    <p class="nota" id="testa">Carico…</p>
+    <div class="bott" id="giorni" role="group" aria-label="Giorno"></div>
+    <div class="bott" id="aree" role="group" aria-label="Area">
+      <button data-a="italia" aria-pressed="true">Italia</button><button data-a="europa" aria-pressed="false">Europa</button>
+    </div>
+    <p class="nerola" id="nerola"></p>
+    <img id="mappa" alt="Mappa EFI del vapore acqueo">
+  </div>
+  <div class="card">
+    <h2 style="font-size:1.05rem;margin:0 0 6px">Come si legge</h2>
+    <p>L'<b>EFI</b> (Extreme Forecast Index) dice quanto il vapore acqueo previsto è insolito per quel luogo e quel periodo dell'anno. Va da −1 a +1: <b>oltre 0,5</b> è insolito, <b>oltre 0,8</b> molto raro. Le <b>linee nere (SOT)</b> segnano dove una parte dei membri supera perfino i valori più alti mai visti nel clima: lì il segnale è da prendere sul serio.</p>
+    <p>Molto vapore da solo non fa piovere, ma se arriva insieme a una perturbazione, a un fronte o a correnti che salgono sui rilievi, aumenta molto il rischio di piogge abbondanti e alluvioni.</p>
+    <p class="nota">È calcolato da noi con la stessa formula di ECMWF, usando i 51 membri dell'ensemble ECMWF (dati aperti). Il confronto però è con il clima 1991-2020 della rianalisi NCEP/NCAR, perché il "clima del modello" usato da ECMWF non è pubblico: i valori possono differire un po' da quelli ufficiali.</p>
+  </div>
+</div>
+<script>
+"use strict";
+const $ = (id) => document.getElementById(id);
+let D = null, g = 0, area = "italia";
+function mostra() {
+  const x = D.giorni[g];
+  $("mappa").src = x.immagini[area] + "?v=" + encodeURIComponent(D.creato);
+  const e = x.nerola_efi, giud = e >= 0.8 ? "molto raro" : e >= 0.5 ? "insolito" : e <= -0.5 ? "molto più secco del normale" : "nella norma";
+  $("nerola").innerHTML = `A Nerola: EFI <b>${e.toFixed(2).replace(".", ",")}</b> (${giud})${x.nerola_sot >= 0 ? " · <b>SOT positivo</b>: valori da record per la stagione" : ""}`;
+  document.querySelectorAll("#giorni button").forEach((b, k) => b.setAttribute("aria-pressed", k === g));
+  document.querySelectorAll("#aree button").forEach((b) => b.setAttribute("aria-pressed", b.dataset.a === area));
+}
+fetch("indice.json?t=" + Date.now(), { cache: "no-store" }).then((r) => r.json()).then((d) => {
+  D = d;
+  const c = d.corsa;
+  $("testa").textContent = `Ensemble ECMWF delle ${c.slice(8, 10)} UTC del ${c.slice(6, 8)}/${c.slice(4, 6)}: media di ogni giorno.`;
+  $("giorni").innerHTML = d.giorni.map((x) => { const t = new Date(x.da); return `<button>${t.toLocaleDateString("it-IT", { weekday: "short", day: "numeric", timeZone: "UTC" })}</button>`; }).join("");
+  document.querySelectorAll("#giorni button").forEach((b, k) => b.onclick = () => { g = k; mostra(); });
+  document.querySelectorAll("#aree button").forEach((b) => b.onclick = () => { area = b.dataset.a; mostra(); });
+  mostra();
+}).catch(() => { $("testa").textContent = "Mappe non ancora disponibili."; });
+</script>
+</body>
+</html>
