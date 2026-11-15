@@ -109,8 +109,8 @@ def rianalisi_anno(anno):
         x = v.values.astype("float64")
         if chiave == "T" and np.nanmean(x) > 100:
             x = x - 273.15                                    # kelvin -> gradi
-        if chiave == "P":
-            x = x * 86400.0                                   # kg/m2/s -> mm/giorno
+        if chiave == "P" and np.nanmean(x) < 0.01:
+            x = x * 86400.0                                   # kg/m2/s -> mm/giorno (alcuni anni sono gia' in mm)
         out[chiave] = (v["time"].values, x)
     ds = xr.open_dataset(DATASET + f"pressure/uwnd.{anno}.nc")
     u = ds["uwnd"].sel(level=10, lat=60.0).mean("lon").load()
@@ -128,6 +128,10 @@ def rianalisi(n, archivio):
             m = min(n, len(z[k]))
             serie[k][:m] = z[k][:m]
         serie["T"][serie["T"] > 100] = np.nan
+        for anno in range(1950, datetime.now(timezone.utc).year + 1):      # pioggia convertita due volte per errore
+            k0, k1 = gi(date(anno, 1, 1)), min(n, gi(date(anno, 12, 31)) + 1)
+            if k0 < n and np.nanmean(serie["P"][k0:k1]) > 50:
+                serie["P"][k0:k1] /= 86400.0
     oggi = datetime.now(timezone.utc).date()
     for anno in range(1950, oggi.year + 1):
         k0, k1 = gi(date(anno, 1, 1)), min(n, gi(date(anno, 12, 31)) + 1)
