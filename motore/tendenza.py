@@ -1,27 +1,26 @@
 """
-Tendenza per settimane e decadi a Nerola, calcolata SOLO dagli indici (teleconnessioni, stratosfera, oceani, MJO)
-e da come, nella storia dal 1950 a oggi, il tempo sull'Italia centrale ha risposto a quegli stessi indici.
+Tendenza per settimane, decadi e mesi sull'Europa, calcolata SOLO dagli indici (teleconnessioni, stratosfera, oceani)
+e da come, dal 1950 a oggi, il tempo ha risposto a quegli stessi indici.
 
 Come funziona, in breve
-  1. Indici giornalieri (NAO, AO, PNA della NOAA CPC; MJO del Bureau of Meteorology; vento a 10 hPa e 60° N, cioe'
-     il vortice polare, dalla rianalisi NCEP/NCAR) e mensili (ENSO, QBO, AMO, EA, SCA, EA/WR, POL: gli stessi del
-     modello stagionale, vedi stagionale.py).
-  2. Temperatura a 2 m e pioggia giornaliere della rianalisi NCEP/NCAR sull'Italia centrale dal 1950, trasformate in
-     anomalie rispetto al clima 1991-2020 di quel giorno dell'anno.
-  3. Per ogni periodo da prevedere (6 settimane, 18 decadi) si prendono, in ogni anno dal 1950, gli indici dello stesso
-     giorno di oggi (e di 10 giorni prima e dopo, per avere piu' esempi) e il tempo che e' venuto nel periodo
-     corrispondente: una regressione "ridge" (lineare, con freno contro l'eccesso di adattamento) impara il legame.
+  1. Indici giornalieri (NAO, AO, PNA della NOAA CPC; vento a 10 hPa e 60° N, cioe' il vortice polare, dalla
+     rianalisi NCEP/NCAR) e mensili (ENSO, QBO, AMO, EA, SCA, EA/WR, POL: gli stessi del modello stagionale).
+  2. Temperatura a 2 m e pioggia giornaliere della rianalisi NCEP/NCAR sull'Europa dal 1950, come anomalie rispetto al
+     clima 1991-2020 di quel giorno dell'anno.
+  3. Per ogni periodo (6 settimane, 18 decadi, 3 mesi) si prendono, in ogni anno dal 1951, gli indici dello stesso giorno
+     di oggi (e di 10 giorni prima e dopo, per avere piu' esempi) e il tempo venuto nel periodo corrispondente: una
+     regressione "ridge" (lineare, con freno contro l'eccesso di adattamento) impara il legame, punto per punto.
   4. L'affidabilita' si misura rifacendo le previsioni di ogni anno senza far vedere al modello quell'anno.
-  5. Con gli indici di oggi si calcola la tendenza: anomalia di temperatura, di pioggia, probabilita' che il periodo
-     sia piu' caldo / piu' piovoso del normale e gli indici che contano di piu'.
+  5. Con gli indici di oggi: mappe di anomalia di temperatura e di pioggia, probabilita' e indici che contano di piu'.
+Un solo motore per settimane, decadi e mesi: le tre viste sono coerenti tra loro.
 
-Uso: python -m motore.tendenza --out uscita_tendenza [--archivio cartella_del_ramo_pubblicato]
+Uso: python -m motore.tendenza --out uscita_tendenza --cache cartella_memoria
 """
 import argparse
 import json
-import math
 import os
 import re
+import shutil
 from datetime import date, datetime, timedelta, timezone
 
 import numpy as np
@@ -29,24 +28,22 @@ import numpy as np
 from motore import stagionale as st
 
 DATASET = "https://psl.noaa.gov/thredds/dodsC/Datasets/ncep.reanalysis.dailyavgs/"
-BOX = dict(lat=(41.0, 43.5), lon=(11.0, 14.5))          # Italia centrale (Nerola e' dentro)
 G0 = date(1950, 1, 1)
 DAILY = {
     "NAO": "https://ftp.cpc.ncep.noaa.gov/cwlinks/norm.daily.nao.cdas.z500.19500101_current.csv",
     "AO": "https://ftp.cpc.ncep.noaa.gov/cwlinks/norm.daily.ao.cdas.z1000.19500101_current.csv",
     "PNA": "https://ftp.cpc.ncep.noaa.gov/cwlinks/norm.daily.pna.cdas.z500.19500101_current.csv",
 }
-MJO = "http://www.bom.gov.au/climate/mjo/graphics/rmm.74toRealtime.txt"
 MENSILI = ["ENSO", "QBO", "AMO", "EA", "SCA", "EAWR", "POL"]
 NOMI = {
     "NAO10": "NAO degli ultimi 10 giorni", "NAO30": "NAO dell'ultimo mese", "AO10": "AO degli ultimi 10 giorni",
-    "AO30": "AO dell'ultimo mese", "PNA30": "PNA dell'ultimo mese", "MJO1": "MJO (fasi 4-5)", "MJO2": "MJO (fasi 6-7)",
-    "VORT10": "vortice polare", "VORTD": "tendenza del vortice polare", "ENSO": "El Niño / La Niña", "QBO": "QBO",
-    "AMO": "Atlantico (AMO)", "EA": "East Atlantic (EA)", "SCA": "Scandinavo (SCA)", "EAWR": "East Atlantic / West Russia",
-    "POL": "Polare-Eurasiatico", "PERST": "caldo o freddo dell'ultimo mese", "PERSP": "pioggia dell'ultimo mese",
-    "TREND": "riscaldamento globale",
+    "AO30": "AO dell'ultimo mese", "PNA30": "PNA dell'ultimo mese", "VORT10": "vortice polare",
+    "VORTD": "tendenza del vortice polare", "ENSO": "El Niño / La Niña", "QBO": "QBO", "AMO": "Atlantico (AMO)",
+    "EA": "East Atlantic (EA)", "SCA": "Scandinavo (SCA)", "EAWR": "East Atlantic / West Russia",
+    "POL": "Polare-Eurasiatico", "TREND": "riscaldamento globale",
 }
 LAMBDA = [1.0, 3.0, 10.0, 30.0, 100.0]
+MESI = st.MESI
 
 
 def log(*a):
@@ -57,7 +54,7 @@ def gi(d):
     return (d - G0).days
 
 
-# ------------------------------------------------------------------------------------------------ dati giornalieri
+# ------------------------------------------------------------------------------------------------ dati
 def serie_giornaliera_cpc(url, n):
     s = np.full(n, np.nan)
     t = st._get(url)
@@ -77,159 +74,97 @@ def serie_giornaliera_cpc(url, n):
     return s
 
 
-def serie_mjo(n):
-    r1, r2 = np.full(n, np.nan), np.full(n, np.nan)
-    t = st._get(MJO)
-    if not t:
-        log("  MJO non disponibile")
-        return r1, r2
-    for riga in t.splitlines():
-        p = riga.split()
-        if len(p) >= 5 and re.fullmatch(r"\d{4}", p[0]):
-            try:
-                k = gi(date(int(p[0]), int(p[1]), int(p[2])))
-                a, b = float(p[3]), float(p[4])
-            except ValueError:
-                continue
-            if 0 <= k < n and abs(a) < 90:
-                r1[k], r2[k] = a, b
-    return r1, r2
-
-
 def rianalisi_anno(anno):
-    """Media sul riquadro dell'Italia centrale di temperatura (°C) e pioggia (mm/giorno), e vento a 10 hPa / 60° N."""
+    """Temperatura (°C) e pioggia (mm/giorno) sull'Europa e vento a 10 hPa / 60° N di un anno."""
     import xarray as xr
     out = {}
     for chiave, (f, var) in {"T": (f"surface_gauss/air.2m.gauss.{anno}.nc", "air"),
                              "P": (f"surface_gauss/prate.sfc.gauss.{anno}.nc", "prate")}.items():
-        ds = xr.open_dataset(DATASET + f)
-        da = ds[var]
+        da = xr.open_dataset(DATASET + f)[var]
         da = da.assign_coords(lon=(((da.lon + 180) % 360) - 180)).sortby("lon").sortby("lat")
-        v = da.sel(lat=slice(*BOX["lat"]), lon=slice(*BOX["lon"])).mean(("lat", "lon")).load()
-        x = v.values.astype("float64")
+        da = da.sel(lat=slice(*st.LAT), lon=slice(*st.LON)).load()
+        x = da.values.astype("float64")
         if chiave == "T" and np.nanmean(x) > 100:
-            x = x - 273.15                                    # kelvin -> gradi
+            x = x - 273.15
         if chiave == "P" and np.nanmean(x) < 0.01:
-            x = x * 86400.0                                   # kg/m2/s -> mm/giorno (alcuni anni sono gia' in mm)
-        out[chiave] = (v["time"].values, x)
-    ds = xr.open_dataset(DATASET + f"pressure/uwnd.{anno}.nc")
-    u = ds["uwnd"].sel(level=10, lat=60.0).mean("lon").load()
+            x = x * 86400.0
+        out[chiave] = (da["time"].values, x)
+        out["lat"], out["lon"] = da.lat.values, da.lon.values
+    u = xr.open_dataset(DATASET + f"pressure/uwnd.{anno}.nc")["uwnd"].sel(level=10, lat=60.0).mean("lon").load()
     out["U10"] = (u["time"].values, u.values.astype("float64"))
     return out
 
 
-def rianalisi(n, archivio):
-    """Serie giornaliere dal 1950; gli anni gia' scaricati si riprendono dall'archivio pubblicato."""
-    serie = {k: np.full(n, np.nan) for k in ("T", "P", "U10")}
-    vecchio = os.path.join(archivio or "", "rianalisi.npz")
-    if archivio and os.path.exists(vecchio):
-        z = np.load(vecchio)
-        for k in serie:
-            m = min(n, len(z[k]))
-            serie[k][:m] = z[k][:m]
-        serie["T"][serie["T"] > 100] = np.nan
-        for anno in range(1950, datetime.now(timezone.utc).year + 1):      # pioggia convertita due volte per errore
-            k0, k1 = gi(date(anno, 1, 1)), min(n, gi(date(anno, 12, 31)) + 1)
-            if k0 < n and np.nanmean(serie["P"][k0:k1]) > 50:
-                serie["P"][k0:k1] /= 86400.0
+def rianalisi(n, cache):
+    """Serie giornaliere dal 1950, anno per anno, memorizzate in `cache` (gli anni chiusi non si riscaricano)."""
+    os.makedirs(cache, exist_ok=True)
     oggi = datetime.now(timezone.utc).date()
+    T = P = lat = lon = None
+    U = np.full(n, np.nan)
     for anno in range(1950, oggi.year + 1):
-        k0, k1 = gi(date(anno, 1, 1)), min(n, gi(date(anno, 12, 31)) + 1)
-        completo = all(np.isfinite(serie[k][k0:k1]).mean() > 0.97 for k in serie)
-        if completo and anno < oggi.year - 1:
-            continue
-        try:
-            r = rianalisi_anno(anno)
-        except Exception as e:  # noqa: BLE001
-            log(f"  rianalisi {anno} non letta: {e}")
-            continue
-        for k, (tempi, v) in r.items():
-            for t, x in zip(tempi, v):
-                d = np.datetime64(t, "D").astype(object)
-                i = gi(d)
-                if 0 <= i < n:
-                    serie[k][i] = x
-        log(f"  rianalisi {anno}: ok")
-    return serie
-
-
-def completa_con_era5(r, n):
-    """La rianalisi NCEP/NCAR non viene piu' aggiornata (si ferma a marzo 2026): i giorni mancanti si completano con
-    ERA5 (Open-Meteo), riportato alla stessa scala della rianalisi con i giorni in cui ci sono entrambe."""
-    import requests
-    oggi = G0 + timedelta(days=n - 1)
-    punti = [(41.6, 11.9), (41.6, 13.6), (42.9, 11.9), (42.9, 13.6), (42.2, 12.8)]
-    T, P = [], []
-    u = ("https://archive-api.open-meteo.com/v1/archive?latitude=%s&longitude=%s&start_date=2023-01-01&end_date=%s"
-         "&daily=temperature_2m_mean,precipitation_sum&timezone=GMT"
-         % (",".join(str(p_[0]) for p_ in punti), ",".join(str(p_[1]) for p_ in punti), oggi.isoformat()))
-    risposta = None
-    for _ in range(4):
-        try:
-            risposta = requests.get(u, timeout=180, headers=st.UA).json()
-            break
-        except Exception as e:  # noqa: BLE001
-            log("  ERA5, riprovo:", e)
-    if risposta is None:
-        return
-    for j in (risposta if isinstance(risposta, list) else [risposta]):
-        d_ = j["daily"]
-        T.append(np.array([np.nan if v is None else v for v in d_["temperature_2m_mean"]], dtype="float64"))
-        P.append(np.array([np.nan if v is None else v for v in d_["precipitation_sum"]], dtype="float64"))
-        tempi = d_["time"]
-    T, P = np.nanmean(T, axis=0), np.nanmean(P, axis=0)
-    ks = np.array([gi(date.fromisoformat(t)) for t in tempi])
-    ok = (ks < n) & (ks >= 0)
-    ks, T, P = ks[ok], T[ok], P[ok]
-    for nome, v, molt in (("T", T, False), ("P", P, True)):
-        s = r[nome]
-        insieme = np.isfinite(s[ks]) & np.isfinite(v)
-        if insieme.sum() < 60:
-            continue
-        if molt:
-            f = np.nansum(s[ks][insieme]) / max(np.nansum(v[insieme]), 1e-6)
-            nuovo = v * f
+        f = os.path.join(cache, f"r_{anno}.npz")
+        chiuso = anno < oggi.year - 1
+        z = None
+        if os.path.exists(f) and chiuso:
+            z = dict(np.load(f))
         else:
-            nuovo = v + np.nanmean(s[ks][insieme] - v[insieme])
-        manca = ~np.isfinite(s[ks]) & np.isfinite(nuovo)
-        s[ks[manca]] = nuovo[manca]
-        log(f"  {nome}: completati con ERA5 {manca.sum()} giorni")
+            try:
+                r = rianalisi_anno(anno)
+                z = {"k": np.array([gi(np.datetime64(t, "D").astype(object)) for t in r["T"][0]]),
+                     "T": r["T"][1].astype("float32"), "P": r["P"][1].astype("float32"),
+                     "kU": np.array([gi(np.datetime64(t, "D").astype(object)) for t in r["U10"][0]]), "U": r["U10"][1],
+                     "lat": r["lat"], "lon": r["lon"]}
+                np.savez_compressed(f, **z)
+                log(f"  rianalisi {anno}: scaricata ({len(z['k'])} giorni)")
+            except Exception as e:  # noqa: BLE001
+                log(f"  rianalisi {anno} non letta: {e}")
+                if os.path.exists(f):
+                    z = dict(np.load(f))
+        if z is None:
+            continue
+        if T is None:
+            lat, lon = z["lat"], z["lon"]
+            T = np.full((n, len(lat), len(lon)), np.nan, dtype="float32")
+            P = np.full((n, len(lat), len(lon)), np.nan, dtype="float32")
+        ok = (z["k"] >= 0) & (z["k"] < n)
+        T[z["k"][ok]] = z["T"][ok]
+        P[z["k"][ok]] = z["P"][ok]
+        okU = (z["kU"] >= 0) & (z["kU"] < n)
+        U[z["kU"][okU]] = z["U"][okU]
+    return T, P, U, lat, lon
 
 
-def anomalie(s, n):
-    """Anomalia rispetto al clima 1991-2020 del giorno dell'anno (lisciato su 31 giorni)."""
-    doy = np.array([(G0 + timedelta(days=k)).timetuple().tm_yday - 1 for k in range(n)])
-    anni = np.array([(G0 + timedelta(days=k)).year for k in range(n)])
-    sel = (anni >= 1991) & (anni <= 2020) & np.isfinite(s)
-    clima = np.array([np.nanmean(s[sel & (doy == d)]) if (sel & (doy == d)).any() else np.nan for d in range(366)])
-    clima[365] = clima[364] if not np.isfinite(clima[365]) else clima[365]
+def anomalie(s):
+    """Anomalia rispetto al clima 1991-2020 del giorno dell'anno (lisciato su 31 giorni). s: [giorni, ...]."""
+    n = s.shape[0]
+    giorni = [G0 + timedelta(days=k) for k in range(n)]
+    doy = np.array([min(g.timetuple().tm_yday, 365) - 1 for g in giorni])
+    anni = np.array([g.year for g in giorni])
+    sel = (anni >= 1991) & (anni <= 2020)
+    clima = np.stack([np.nanmean(s[sel & (doy == d)], axis=0) for d in range(365)])
     pad = np.concatenate([clima[-15:], clima, clima[:15]])
-    lis = np.convolve(pad, np.ones(31) / 31, mode="same")[15:-15]
-    return s - lis[doy], lis, doy
+    c = np.cumsum(np.concatenate([np.zeros((1,) + pad.shape[1:]), pad]), axis=0)
+    lis = (c[31:] - c[:-31]) / 31
+    return (s - lis[doy]).astype("float32"), lis, doy
 
 
-# ------------------------------------------------------------------------------------------------ predittori
 def media(s, k, giorni):
     v = s[max(0, k - giorni + 1):k + 1]
     v = v[np.isfinite(v)]
     return float(v.mean()) if len(v) else np.nan
 
 
-def predittori(k, d, ind_m, aT, aP):
-    """Valori degli indici al giorno k (ultimo giorno noto)."""
+def predittori(k, d, ind_m):
     g = G0 + timedelta(days=k)
-    im = st.idx(g.year, g.month) - 1                        # ultimo mese completo
-    x = {
-        "NAO10": media(d["NAO"], k, 10), "NAO30": media(d["NAO"], k, 30), "AO10": media(d["AO"], k, 10),
-        "AO30": media(d["AO"], k, 30), "PNA30": media(d["PNA"], k, 30),
-        "MJO1": media(d["RMM1"], k, 5), "MJO2": media(d["RMM2"], k, 5),
-        "VORT10": media(d["aU10"], k, 10), "VORTD": media(d["aU10"], k, 10) - media(d["aU10"], k - 10, 10),
-        "PERST": media(aT, k, 30), "PERSP": media(aP, k, 30), "TREND": (g.year - 1990) / 30.0,
-    }
+    im = st.idx(g.year, g.month) - 1
+    x = {"NAO10": media(d["NAO"], k, 10), "NAO30": media(d["NAO"], k, 30), "AO10": media(d["AO"], k, 10),
+         "AO30": media(d["AO"], k, 30), "PNA30": media(d["PNA"], k, 30),
+         "VORT10": media(d["aU"], k, 10), "VORTD": media(d["aU"], k, 10) - media(d["aU"], k - 10, 10),
+         "TREND": (g.year - 1990) / 30.0}
     for nome in MENSILI:
         s = ind_m.get(nome)
         v = np.nan
-        for j in range(im, im - 3, -1):                    # ultimo valore noto (fino a 3 mesi prima)
+        for j in range(im, im - 3, -1):
             if s is not None and 0 <= j < len(s) and np.isfinite(s[j]):
                 v = float(s[j])
                 break
@@ -237,56 +172,66 @@ def predittori(k, d, ind_m, aT, aP):
     return x
 
 
-def ridge(X, y, lam):
-    p = X.shape[1]
-    return np.linalg.solve(X.T @ X + lam * np.eye(p), X.T @ y)
-
-
-def allena(Xs, ys, anni):
-    """Sceglie il freno (lambda) con la validazione incrociata per anni; ritorna coefficienti, abilita' e errore."""
-    meglio = None
-    for lam in LAMBDA:
-        prev = np.zeros_like(ys)
-        for a in np.unique(anni):
-            tr = anni != a
-            b = ridge(Xs[tr], ys[tr], lam)
-            prev[~tr] = Xs[~tr] @ b
-        r = np.corrcoef(prev, ys)[0, 1] if np.std(prev) > 0 else 0
-        if meglio is None or r > meglio[1]:
-            meglio = (lam, r, prev)
-    lam, r, prev = meglio
-    b = ridge(Xs, ys, lam)
-    sigma = float(np.std(ys - prev))
-    giusti = float(np.mean(np.sign(prev) == np.sign(ys)))
-    return b, float(r), sigma, giusti
-
-
 def periodi(oggi):
-    """(nome, tipo, inizio, fine) per 6 settimane (da lunedi' prossimo) e 18 decadi (dalla prossima)."""
     out = []
     lun = oggi + timedelta(days=(7 - oggi.weekday()) % 7 or 7)
     for s in range(6):
         a = lun + timedelta(days=7 * s)
         out.append(("settimana", a, a + timedelta(days=6)))
     g = oggi.day
-    a = date(oggi.year, oggi.month, 11 if g <= 10 else 21) if g <= 20 else (date(oggi.year + (oggi.month == 12), oggi.month % 12 + 1, 1))
+    a = date(oggi.year, oggi.month, 11 if g <= 10 else 21) if g <= 20 else date(oggi.year + (oggi.month == 12), oggi.month % 12 + 1, 1)
     for _ in range(18):
-        if a.day == 1:
-            b = date(a.year, a.month, 10)
-        elif a.day == 11:
-            b = date(a.year, a.month, 20)
-        else:
-            b = (date(a.year + (a.month == 12), a.month % 12 + 1, 1) - timedelta(days=1))
+        b = date(a.year, a.month, 10) if a.day == 1 else date(a.year, a.month, 20) if a.day == 11 else \
+            date(a.year + (a.month == 12), a.month % 12 + 1, 1) - timedelta(days=1)
         out.append(("decade", a, b))
         a = b + timedelta(days=1)
+    a = date(oggi.year + (oggi.month == 12), oggi.month % 12 + 1, 1)
+    for _ in range(3):
+        b = date(a.year + (a.month == 12), a.month % 12 + 1, 1) - timedelta(days=1)
+        out.append(("mese", a, b))
+        a = b + timedelta(days=1)
     return out
+
+
+def allena(Xs, Y, anni):
+    """Ridge punto per punto con il freno scelto per ogni punto dalla validazione incrociata per anni.
+    Ritorna (coefficienti [p, punti], correlazione, sigma dell'errore)."""
+    folds = [anni == a for a in np.unique(anni)]
+    migliore_r = np.full(Y.shape[1], -9.0)
+    B = np.zeros((Xs.shape[1], Y.shape[1]))
+    sig = np.ones(Y.shape[1])
+    ok = np.isfinite(Y).all(axis=0)
+    Yc = np.nan_to_num(Y)
+    for lam in LAMBDA:
+        prev = np.zeros_like(Yc)
+        for te in folds:
+            tr = ~te
+            A = Xs[tr].T @ Xs[tr] + lam * np.eye(Xs.shape[1])
+            prev[te] = Xs[te] @ np.linalg.solve(A, Xs[tr].T @ Yc[tr])
+        pc, yc = prev - prev.mean(0), Yc - Yc.mean(0)
+        r = (pc * yc).sum(0) / np.maximum(np.sqrt((pc ** 2).sum(0) * (yc ** 2).sum(0)), 1e-12)
+        meglio = (r > migliore_r) & ok
+        if meglio.any():
+            b = np.linalg.solve(Xs.T @ Xs + lam * np.eye(Xs.shape[1]), Xs.T @ Yc)
+            B[:, meglio] = b[:, meglio]
+            sig[meglio] = np.std(Yc - prev, axis=0)[meglio]
+            migliore_r[meglio] = r[meglio]
+    return B, np.where(ok, migliore_r, np.nan), sig
+
+
+def nome_periodo(tipo, a, b):
+    if tipo == "mese":
+        return f"{MESI[a.month - 1]} {a.year}"
+    if tipo == "decade":
+        return f"{['1ª', '2ª', '3ª'][min((a.day - 1) // 10, 2)]} decade di {MESI[a.month - 1]}"
+    return f"{a.day} {MESI[a.month - 1][:3]} – {b.day} {MESI[b.month - 1][:3]}"
 
 
 # ------------------------------------------------------------------------------------------------ principale
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--out", required=True)
-    ap.add_argument("--archivio", default="")
+    ap.add_argument("--cache", default="cache_tendenza")
     a = ap.parse_args()
     os.makedirs(a.out, exist_ok=True)
     oggi = datetime.now(timezone.utc).date()
@@ -295,83 +240,95 @@ def main():
     ind_m = st.scarica_indici(oggi)
     log("Indici giornalieri...")
     d = {k: serie_giornaliera_cpc(u, n) for k, u in DAILY.items()}
-    d["RMM1"], d["RMM2"] = serie_mjo(n)
-    log("Rianalisi giornaliera (Italia centrale e vortice polare)...")
-    r = rianalisi(n, a.archivio)
-    np.savez_compressed(os.path.join(a.out, "rianalisi.npz"), **r)      # solo NCEP/NCAR (ERA5 si riprende ogni volta)
-    completa_con_era5(r, n)
-    aT, climaT, doy = anomalie(r["T"], n)
-    aP, climaP, _ = anomalie(r["P"], n)
-    d["aU10"], _, _ = anomalie(r["U10"], n)
-    # ultimo giorno con gli indici giornalieri principali: le previsioni partono da li'
-    ultimo = max(k for k in range(n) if np.isfinite(r["T"][k])) if np.isfinite(r["T"]).any() else n - 1
-    k_ora = min(n - 1, max([k for k in range(n - 1, n - 20, -1) if np.isfinite(d["NAO"][k])] or [n - 1]))
-    x_ora = predittori(k_ora, d, ind_m, aT, aP)
-    nomi = list(x_ora)
-    log("Predittori di oggi:", {k: round(v, 2) for k, v in x_ora.items() if np.isfinite(v)})
-
-    risultati = []
+    log("Rianalisi giornaliera...")
+    T, P, U, lat, lon = rianalisi(n, a.cache)
+    aT, climaT, doy = anomalie(T)
+    aP, climaP, _ = anomalie(P)
+    aU, _, _ = anomalie(U)
+    d["aU"] = aU
+    ultimo = int(np.where(np.isfinite(T[:, 0, 0]))[0].max())
+    log("Rianalisi fino al", G0 + timedelta(days=ultimo))
+    k_ora = max([k for k in range(n - 1, n - 20, -1) if np.isfinite(d["NAO"][k])] or [n - 1])
     oggi_d = G0 + timedelta(days=k_ora)
-    for tipo, ini, fin in periodi(oggi):
+    x_ora = predittori(k_ora, d, ind_m)
+    nomi = list(x_ora)
+    log("Indici di oggi:", {k: round(v, 2) for k, v in x_ora.items() if np.isfinite(v)})
+    ny, nx = len(lat), len(lon)
+    risultati = []
+    for num, (tipo, ini, fin) in enumerate(periodi(oggi)):
         off0, lung = (ini - oggi_d).days, (fin - ini).days + 1
         righe, yT, yP, anni = [], [], [], []
         for anno in range(1951, oggi.year):
             for sposta in (-10, 0, 10):
-                try:
-                    g = date(anno, oggi_d.month, min(oggi_d.day, 28)) + timedelta(days=sposta)
-                except ValueError:
-                    continue
+                g = date(anno, oggi_d.month, min(oggi_d.day, 28)) + timedelta(days=sposta)
                 k = gi(g)
                 k1, k2 = k + off0, k + off0 + lung
                 if k2 > ultimo:
                     continue
-                t = aT[k1:k2]
-                p = aP[k1:k2]
-                if np.isfinite(t).mean() < 0.8:
-                    continue
-                righe.append(predittori(k, d, ind_m, aT, aP))
-                yT.append(np.nanmean(t))
-                yP.append(np.nanmean(p))
+                righe.append(predittori(k, d, ind_m))
+                yT.append(np.nanmean(aT[k1:k2], axis=0).ravel())
+                yP.append(np.nanmean(aP[k1:k2], axis=0).ravel())
                 anni.append(anno)
         if len(righe) < 60:
             log(f"  {tipo} {ini}: pochi esempi ({len(righe)})")
             continue
         X = np.array([[x[k] for k in nomi] for x in righe], dtype="float64")
-        mu = np.nanmean(X, axis=0)
-        sd = np.nanstd(X, axis=0)
+        mu, sd = np.nanmean(X, axis=0), np.nanstd(X, axis=0)
         sd[~np.isfinite(sd) | (sd == 0)] = 1.0
-        usa = np.isfinite(mu) & (np.isfinite(X).mean(axis=0) > 0.5)
-        Xs = np.where(np.isfinite(X), (X - mu) / sd, 0.0)[:, usa]
         xo = np.array([x_ora[k] for k in nomi])
+        usa = np.isfinite(mu) & (np.isfinite(X).mean(axis=0) > 0.5) & np.isfinite(xo)
+        usa[nomi.index("TREND")] = True
+        Xs = np.where(np.isfinite(X), (X - mu) / sd, 0.0)[:, usa]
         xs = np.where(np.isfinite(xo), (xo - mu) / sd, 0.0)[usa]
-        anni = np.array(anni)
-        voce = {"tipo": tipo, "dal": ini.isoformat(), "al": fin.isoformat(), "esempi": len(righe)}
         nomi_u = [k for k, u in zip(nomi, usa) if u]
-        for var, y, clima in (("t", np.array(yT), climaT), ("p", np.array(yP), climaP)):
-            ym = y.mean()
-            b, rcv, sigma, giusti = allena(Xs, y - ym, anni)
-            prev = float(xs @ b + ym)
-            contrib = sorted(((float(b[j] * xs[j]), nomi_u[j], float(xo[nomi.index(nomi_u[j])])) for j in range(len(b))),
-                             key=lambda z: -abs(z[0]))
-            prob = 0.5 * (1 + math.erf((prev) / (max(sigma, 1e-6) * math.sqrt(2))))
-            dd = [(ini + timedelta(days=j)).timetuple().tm_yday - 1 for j in range(lung)]
-            norm = float(np.mean(clima[dd]))
-            voce[var] = {"anomalia": round(prev, 2), "prob_sopra": round(prob, 2), "abilita": round(rcv, 2),
-                         "giusti": round(giusti, 2), "clima": round(norm, 2),
-                         "perche": [{"indice": c[1], "nome": NOMI.get(c[1], c[1]), "valore": round(c[2], 2), "effetto": round(c[0], 3)}
-                                    for c in contrib[:3] if abs(c[0]) > 0.02]}
-            if var == "p":
-                voce[var]["percento"] = round(100 * prev / max(norm, 0.3))
+        anni = np.array(anni)
+        dd = [min((ini + timedelta(days=j)).timetuple().tm_yday, 365) - 1 for j in range(lung)]
+        clP = np.mean(climaP[dd], axis=0)
+        voce = {"tipo": tipo, "nome": nome_periodo(tipo, ini, fin), "dal": ini.isoformat(), "al": fin.isoformat(),
+                "esempi": len(righe), "immagini": {}}
+        sotto = f"Tendenza MeteoNerola dagli indici al {oggi_d:%d/%m/%Y} · puntinato: affidabilità storica bassa (correlazione < 0,2)"
+        for var, Y in (("t", np.array(yT)), ("p", np.array(yP))):
+            ym = np.nanmean(Y, axis=0)
+            B, r, sig = allena(Xs, Y - ym, anni)
+            prev = (xs @ B + ym).reshape(ny, nx)
+            contrib = (xs[:, None] * B).reshape(len(xs), ny, nx)
+            prob = st.prob_sopra(prev, sig.reshape(ny, nx))
+            r = r.reshape(ny, nx)
+            poco = (r < 0.2).astype(float)
+            if var == "t":
+                st.disegna(lat, lon, prev, f"Temperatura · {voce['nome']}", sotto, os.path.join(a.out, f"t_{num}.png"),
+                           np.arange(-2.5, 2.51, 0.25), "RdBu_r", "°C rispetto alla media 1991-2020", poco)
+                voce["immagini"]["temperatura"] = f"t_{num}.png"
+                box = {"anomalia": round(st.media_box(prev, lat, lon, st.CENTRO_ITALIA), 2)}
+            else:
+                perc = 100 * prev / np.maximum(clP, 0.2)
+                st.disegna(lat, lon, np.clip(perc, -60, 60), f"Pioggia · {voce['nome']}", sotto,
+                           os.path.join(a.out, f"p_{num}.png"), np.arange(-50, 51, 10), "BrBG",
+                           "% rispetto alla pioggia normale 1991-2020", poco)
+                voce["immagini"]["pioggia"] = f"p_{num}.png"
+                box = {"percento": int(round(st.media_box(perc, lat, lon, st.CENTRO_ITALIA))),
+                       "anomalia": round(st.media_box(prev, lat, lon, st.CENTRO_ITALIA), 2)}
+            box["prob_sopra"] = int(round(st.media_box(prob, lat, lon, st.CENTRO_ITALIA)))
+            box["abilita"] = round(st.media_box(r, lat, lon, st.CENTRO_ITALIA), 2)
+            ct = [(st.media_box(contrib[j], lat, lon, st.CENTRO_ITALIA), nomi_u[j]) for j in range(len(nomi_u))]
+            ct.sort(key=lambda z: -abs(z[0]))
+            box["perche"] = [{"indice": c[1], "nome": NOMI.get(c[1], c[1]), "valore": round(x_ora[c[1]], 2),
+                              "effetto": round(c[0], 3)} for c in ct[:3] if abs(c[0]) > 0.02]
+            voce[var] = box
         risultati.append(voce)
-        log(f"  {tipo} {ini}..{fin}: T {voce['t']['anomalia']:+.2f} (r={voce['t']['abilita']:.2f}), "
-            f"P {voce['p']['percento']:+d}% (r={voce['p']['abilita']:.2f})")
+        log(f"  {voce['nome']}: T {voce['t']['anomalia']:+.2f} ({voce['t']['prob_sopra']}%, r={voce['t']['abilita']}), "
+            f"P {voce['p']['percento']:+d}% ({voce['p']['prob_sopra']}%, r={voce['p']['abilita']})")
     uscita = {"emessa": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%MZ"), "indici_al": oggi_d.isoformat(),
+              "rianalisi_al": (G0 + timedelta(days=ultimo)).isoformat(),
               "indici": {k: (round(v, 2) if np.isfinite(v) else None) for k, v in x_ora.items()},
               "nomi": NOMI, "periodi": risultati,
               "fonti": ["NOAA CPC (NAO, AO, PNA giornalieri; EA, SCA, EA/WR, POL)", "NOAA PSL (ENSO, QBO, AMO)",
-                        "Bureau of Meteorology (MJO)", "Rianalisi NCEP/NCAR (temperatura, pioggia, vortice polare)"]}
+                        "Rianalisi NCEP/NCAR (temperatura, pioggia, vortice polare)"]}
     with open(os.path.join(a.out, "tendenza.json"), "w") as f:
         json.dump(uscita, f, ensure_ascii=False, separators=(",", ":"))
+    pagina = os.path.join(os.path.dirname(os.path.abspath(__file__)), "tendenza.html")
+    if os.path.exists(pagina):
+        shutil.copy(pagina, os.path.join(a.out, "index.html"))
     log("Scritto tendenza.json con", len(risultati), "periodi")
 
 

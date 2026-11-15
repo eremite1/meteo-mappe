@@ -1,0 +1,110 @@
+<!doctype html>
+<html lang="it">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Tendenza: settimane, decadi e mesi</title>
+<style>
+:root { --sfondo:#f6f7f9; --carta:#fff; --testo:#1d2430; --muto:#5c6878; --bordo:#e1e5ea; --accento:#1f6fb2; --caldo:#c0392b; --freddo:#2471a3; --verde:#2e7d32; --marrone:#8d5a2b; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { --sfondo:#12161c; --carta:#1b2129; --testo:#e6eaef; --muto:#9aa6b4; --bordo:#2c3540; --accento:#5aa9e6; --caldo:#e57368; --freddo:#6fb1e3; --verde:#66bb6a; --marrone:#d1a173; } }
+* { box-sizing: border-box; }
+body { margin:0; background:var(--sfondo); color:var(--testo); font:15px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+.wrap { max-width:1100px; margin:0 auto; padding:16px; }
+h1 { font-size:1.45rem; margin:0 0 4px; } h2 { font-size:1.1rem; margin:0 0 10px; }
+.sotto { color:var(--muto); margin:0 0 14px; }
+.card { background:var(--carta); border:1px solid var(--bordo); border-radius:12px; padding:16px; margin-bottom:14px; }
+.seg { display:flex; gap:6px; flex-wrap:wrap; margin-bottom:10px; }
+.seg button { border:1px solid var(--bordo); background:var(--carta); color:var(--testo); border-radius:20px; padding:7px 14px; font:inherit; cursor:pointer; }
+.seg button[aria-pressed="true"] { background:var(--accento); color:#fff; border-color:var(--accento); }
+.seg.grande button { font-weight:600; padding:9px 18px; }
+.riassunto { display:grid; grid-template-columns:repeat(auto-fit, minmax(230px, 1fr)); gap:10px; }
+.box { border:1px solid var(--bordo); border-radius:10px; padding:12px; }
+.box .et { font-size:.78rem; text-transform:uppercase; letter-spacing:.06em; color:var(--muto); font-weight:700; }
+.box .grande { font-size:1.45rem; font-weight:700; margin:2px 0; }
+.caldo { color:var(--caldo); } .freddo { color:var(--freddo); } .umido { color:var(--accento); } .secco { color:var(--marrone); }
+.mappa img { width:100%; height:auto; border-radius:8px; border:1px solid var(--bordo); background:#fff; }
+.nota { color:var(--muto); font-size:.86rem; }
+table { width:100%; border-collapse:collapse; font-size:.9rem; }
+th, td { text-align:left; padding:6px 8px; border-bottom:1px solid var(--bordo); vertical-align:top; }
+th { color:var(--muto); font-weight:600; }
+tr.attiva td { background:rgba(31,111,178,.08); }
+tr { cursor:pointer; }
+.tab { overflow-x:auto; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Tendenza: settimane, decadi e mesi</h1>
+  <p class="sotto" id="testa">Carico la tendenza…</p>
+
+  <div class="card">
+    <div class="seg grande" id="tipi" role="group" aria-label="Periodo">
+      <button data-t="settimana" aria-pressed="true">Settimane</button>
+      <button data-t="decade" aria-pressed="false">Decadi</button>
+      <button data-t="mese" aria-pressed="false">Mesi</button>
+    </div>
+    <div class="tab"><table><thead><tr><th>Periodo</th><th>Temperatura (Italia centrale)</th><th>Pioggia (Italia centrale)</th><th>Affidabilità</th></tr></thead><tbody id="righe"></tbody></table></div>
+  </div>
+
+  <div class="card">
+    <h2 id="titolo-per"></h2>
+    <div class="riassunto" id="riassunto"></div>
+  </div>
+
+  <div class="card mappa">
+    <div class="seg" id="var" role="group" aria-label="Mappa">
+      <button data-v="temperatura" aria-pressed="true">🌡️ Temperatura</button>
+      <button data-v="pioggia" aria-pressed="false">🌧️ Pioggia</button>
+    </div>
+    <img id="mappa" alt="Mappa della tendenza">
+    <p class="nota">Le zone puntinate sono quelle dove, nelle prove sugli anni passati, gli indici hanno detto poco (affidabilità bassa): lì la tendenza va presa con molta cautela.</p>
+  </div>
+
+  <div class="card">
+    <h2>Come funziona</h2>
+    <p class="nota">Nessun modello meteorologico: la tendenza viene solo dagli <b>indici</b> — NAO, AO e PNA giornalieri, vortice polare (vento a 10 hPa sull'Artico), El Niño, QBO, Atlantico (AMO), East Atlantic, Scandinavo, East Atlantic/West Russia, Polare-Eurasiatico — e dalla <b>storia</b>: per ogni anno dal 1951 si guarda che tempo ha fatto in Europa, nelle settimane, decadi e mesi successivi a questo stesso periodo dell'anno, quando gli indici avevano certi valori. Un unico calcolo per settimane, decadi e mesi, così le tre viste sono coerenti tra loro. L'affidabilità è la correlazione tra le previsioni rifatte sul passato (senza far vedere l'anno previsto) e quello che è successo davvero: sopra 0,35 buona, tra 0,2 e 0,35 discreta, sotto 0,2 bassa.</p>
+    <p class="nota" id="fonti"></p>
+  </div>
+</div>
+<script>
+"use strict";
+const $ = (id) => document.getElementById(id);
+let D = null, tipo = "settimana", sel = 0, vista = "temperatura";
+const segno = (x, d = 1) => (x > 0 ? "+" : x < 0 ? "−" : "") + Math.abs(x).toFixed(d).replace(".", ",");
+const affid = (r) => r >= 0.35 ? "buona" : r >= 0.2 ? "discreta" : "bassa";
+function parolaT(p) { return p >= 70 ? ["più caldo", "caldo"] : p >= 58 ? ["tendenza più calda", "caldo"] : p <= 30 ? ["più freddo", "freddo"] : p <= 42 ? ["tendenza più fredda", "freddo"] : ["nella norma", ""]; }
+function parolaP(p) { return p >= 66 ? ["più piovoso", "umido"] : p >= 57 ? ["tendenza più piovosa", "umido"] : p <= 34 ? ["più asciutto", "secco"] : p <= 43 ? ["tendenza più asciutta", "secco"] : ["pioggia nella norma", ""]; }
+const elenco = () => D.periodi.filter((p) => p.tipo === tipo);
+function tabella() {
+  const l = elenco();
+  $("righe").innerHTML = l.map((p, i) => {
+    const [tt, ct] = parolaT(p.t.prob_sopra), [pp, cp] = parolaP(p.p.prob_sopra);
+    return `<tr data-i="${i}" class="${i === sel ? "attiva" : ""}"><td><b>${p.nome}</b></td><td class="${ct}">${tt} <small>(${segno(p.t.anomalia)} °C · ${p.t.prob_sopra}% più caldo)</small></td>` +
+      `<td class="${cp}">${pp} <small>(${segno(p.p.percento, 0)}% · ${p.p.prob_sopra}% più piovoso)</small></td><td>${affid(Math.max(p.t.abilita, 0))}</td></tr>`;
+  }).join("");
+  document.querySelectorAll("#righe tr").forEach((tr) => tr.onclick = () => { sel = +tr.dataset.i; mostra(); });
+}
+function mostra() {
+  const p = elenco()[sel]; if (!p) return;
+  tabella();
+  $("titolo-per").textContent = p.nome[0].toUpperCase() + p.nome.slice(1) + " · Italia centrale";
+  const [tt, ct] = parolaT(p.t.prob_sopra), [pp, cp] = parolaP(p.p.prob_sopra);
+  const perche = (x) => x.perche.length ? x.perche.map((c) => `${c.nome} (${c.valore >= 0 ? "positivo" : "negativo"})`).join(", ") : "nessun indice dà un segnale chiaro";
+  $("riassunto").innerHTML =
+    `<div class="box"><div class="et">Temperatura</div><div class="grande ${ct}">${tt}</div>${segno(p.t.anomalia)} °C rispetto alla media · probabilità di un periodo più caldo del normale: <b>${p.t.prob_sopra}%</b><br><small>Affidabilità ${affid(Math.max(p.t.abilita, 0))} · indici che pesano di più: ${perche(p.t)}</small></div>` +
+    `<div class="box"><div class="et">Pioggia</div><div class="grande ${cp}">${pp}</div>${segno(p.p.percento, 0)}% rispetto alla pioggia normale · probabilità di un periodo più piovoso: <b>${p.p.prob_sopra}%</b><br><small>Affidabilità ${affid(Math.max(p.p.abilita, 0))} · indici che pesano di più: ${perche(p.p)}</small></div>`;
+  $("mappa").src = p.immagini[vista] + "?v=" + encodeURIComponent(D.emessa);
+  $("mappa").alt = (vista === "temperatura" ? "Temperatura" : "Pioggia") + " · " + p.nome;
+}
+fetch("tendenza.json?v=" + Date.now()).then((r) => r.json()).then((j) => {
+  D = j;
+  const d = new Date(j.indici_al);
+  $("testa").textContent = "Calcolata con gli indici al " + d.toLocaleDateString("it-IT", { day: "numeric", month: "long", year: "numeric" }) + ". Scegli settimane, decadi o mesi, poi tocca una riga per la mappa.";
+  $("fonti").textContent = "Fonti: " + j.fonti.join("; ") + ".";
+  document.querySelectorAll("#tipi button").forEach((b) => b.onclick = () => { tipo = b.dataset.t; sel = 0; document.querySelectorAll("#tipi button").forEach((x) => x.setAttribute("aria-pressed", x === b)); mostra(); });
+  document.querySelectorAll("#var button").forEach((b) => b.onclick = () => { vista = b.dataset.v; document.querySelectorAll("#var button").forEach((x) => x.setAttribute("aria-pressed", x === b)); mostra(); });
+  mostra();
+}).catch(() => { $("testa").textContent = "La tendenza non è disponibile in questo momento."; });
+</script>
+</body>
+</html>

@@ -1,5 +1,5 @@
 name: Tendenza per settimane e decadi
-# Tendenza di temperatura e pioggia a Nerola per 6 settimane e 18 decadi, solo dagli indici di teleconnessione
+# Tendenza di temperatura e pioggia sull'Europa per 6 settimane, 18 decadi e 3 mesi, solo dagli indici di teleconnessione
 # (NAO, AO, PNA, MJO, vortice polare, ENSO, QBO, ...) e dalla loro storia dal 1950 (motore/tendenza.py).
 on:
   schedule:
@@ -22,13 +22,19 @@ jobs:
         cache: pip
         cache-dependency-path: requirements-mappe.txt
     - run: pip install -q -r requirements-mappe.txt xarray netCDF4
-    - name: Recupero la rianalisi gia' scaricata
-      run: |
-        mkdir -p pubblicato
-        git fetch -q --depth 1 origin tendenza && git --work-tree=pubblicato checkout FETCH_HEAD -- . || echo "prima volta"
-        git reset -q
+    - name: Coste e confini (memorizzati)
+      uses: actions/cache@v4
+      with:
+        path: ~/.local/share/cartopy
+        key: cartopy-naturalearth-v2
+    - name: Rianalisi gia' scaricata (memorizzata)
+      uses: actions/cache@v4
+      with:
+        path: cache_tendenza
+        key: rianalisi-europa-${{ github.run_id }}
+        restore-keys: rianalisi-europa-
     - name: Calcolo
-      run: python -m motore.tendenza --out uscita_tendenza --archivio pubblicato
+      run: python -m motore.tendenza --out uscita_tendenza --cache cache_tendenza
     - name: Pubblico nel ramo tendenza
       env:
         TOKEN: ${{ secrets.GITHUB_TOKEN }}
