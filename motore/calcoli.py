@@ -280,3 +280,39 @@ def ship(cape, mr_gkg, gradiente_700_500, t500, shear_ms, zero_termico_m):
     s = s * np.where(lr < 5.8, lr / 5.8, 1.0)
     s = s * np.where(zero_termico_m < 2400, np.clip(zero_termico_m, 0, None) / 2400.0, 1.0)
     return np.clip(s, 0, None)
+
+
+def _rampa(x, a, b):
+    return np.clip((np.asarray(x, dtype="float64") - a) / (b - a), 0.0, 1.0)
+
+
+def indice_temporali(cape, cin=None, li=None, k=None, rh700=None, prec=None, w700=None, lpi=None):
+    """Probabilita' di temporali (0-100 %): «Indice temporali MeteoNerola», tipo thunderstorm index.
+
+    Combina gli ingredienti di un temporale invece del solo CAPE:
+      instabilita'  : il massimo tra CAPE (0 a 50, pieno a 800 J/kg), Lifted Index (0 a +1, pieno a -4) e K-Index
+                      (0 a 25, pieno a 35, pesato 0,8);
+      blocco (CIN)  : un'inibizione forte toglie fino al 75 % (da 25 a 200 J/kg);
+      umidita' in quota: aria secca a 700 hPa (sotto il 30 %) spegne i temporali, sopra il 70 % pieno effetto
+                      (fattore da 0,3 a 1);
+      innesco       : il massimo tra pioggia prevista (da 0,1 a 2 mm/h), moto verso l'alto a 700 hPa (da 0,05 a 0,5 m/s,
+                      solo WRF) e un minimo di 0,25 (anche senza innesco visibile un temporale puo' nascere);
+      fulmini       : se il modello calcola il Lightning Potential Index, la probabilita' e' almeno quella che dice lui.
+    Tutti gli argomenti tranne il CAPE possono mancare (None)."""
+    cape = np.nan_to_num(np.asarray(cape, dtype="float64"), nan=0.0)
+    inst = _rampa(cape, 50.0, 800.0)
+    if li is not None:
+        inst = np.maximum(inst, _rampa(-np.nan_to_num(li, nan=5.0), -1.0, 4.0))
+    if k is not None:
+        inst = np.maximum(inst, 0.8 * _rampa(np.nan_to_num(k, nan=0.0), 25.0, 35.0))
+    blocco = 1.0 if cin is None else 1.0 - 0.75 * _rampa(np.abs(np.nan_to_num(cin, nan=0.0)), 25.0, 200.0)
+    umido = 1.0 if rh700 is None else 0.3 + 0.7 * _rampa(np.nan_to_num(rh700, nan=50.0), 30.0, 70.0)
+    innesco = np.full(cape.shape, 0.25)
+    if prec is not None:
+        innesco = np.maximum(innesco, _rampa(np.nan_to_num(prec, nan=0.0), 0.1, 2.0))
+    if w700 is not None:
+        innesco = np.maximum(innesco, _rampa(np.nan_to_num(w700, nan=0.0), 0.05, 0.5))
+    p = 100.0 * inst * blocco * umido * innesco
+    if lpi is not None:
+        p = np.maximum(p, 100.0 * _rampa(np.nan_to_num(lpi, nan=0.0), 0.5, 5.0))
+    return np.clip(p, 0, 100)

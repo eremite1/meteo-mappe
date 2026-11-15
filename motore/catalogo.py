@@ -283,7 +283,34 @@ P("strato_limite", "Altezza dello strato rimescolato", "Quota", "metri",
   lambda c: c.v("boundary_layer_height", minimo=0))
 
 # --- Temporali e instabilità --------------------------------------------------
-P("cape", "CAPE (energia per i temporali)", "Temporali", "J/kg",
+def _opz(c, nome, **kw):
+    """Un campo che non tutti i modelli hanno: None se manca."""
+    try:
+        return c.v(nome, **kw)
+    except Exception:  # noqa: BLE001
+        return None
+
+
+def _indice_temporali(c):
+    k = None
+    try:
+        k = C.k_index(c.v("temperature_850hPa"), c.td_livello("850hPa"), c.v("temperature_700hPa"), c.td_livello("700hPa"),
+                      c.v("temperature_500hPa"))
+    except Exception:  # noqa: BLE001
+        pass
+    try:
+        prec = c.acc("precipitation") / max(1.0, float(c.L.passo[c.area]))
+    except Exception:  # noqa: BLE001
+        prec = None
+    return C.indice_temporali(c.v("cape", minimo=0), _opz(c, "convective_inhibition"), None, k,
+                              _opz(c, "relative_humidity_700hPa", minimo=0, massimo=100), prec, None,
+                              _opz(c, "lightning_potential", minimo=0))
+
+
+P("temporali", "Probabilità di temporali", "Temporali",
+  "% · indice MeteoNerola: instabilità (CAPE, K-Index), blocco (CIN), umidità in quota, innesco (pioggia), fulmini",
+  dict(livelli=[5, 10, 20, 30, 40, 50, 60, 70, 80, 90], cmap=CMAP_INSTAB, extend="max", ombra=True), TUTTE, _indice_temporali)
+P("cape", "CAPE (energia per i temporali, per esperti)", "Temporali", "J/kg",
   dict(livelli=[50, 100, 250, 500, 750, 1000, 1500, 2000, 3000, 4000], cmap=CMAP_INSTAB,
        extend="max", ombra=True), TUTTE, lambda c: c.v("cape", minimo=0))
 P("cin", "CIN (inibizione convettiva)", "Temporali", "J/kg (più alto = temporali più 'bloccati')",
@@ -484,7 +511,7 @@ CATEGORIA_DI = {
     "Pressione e quota": ["pressione", "z500_t500", "t850", "umidita_850", "umidita_700",
                           "moti_verticali", "theta_e_850", "gradiente_850_500", "acqua_precipitabile",
                           "strato_limite", "temperatura_mare"],
-    "Temporali": ["grandine", "cape", "cin", "fulminazioni", "cape_shear", "instabilita_potenziale", "k_index",
+    "Temporali": ["temporali", "grandine", "cape", "cin", "fulminazioni", "cape_shear", "instabilita_potenziale", "k_index",
                   "total_totals", "showalter", "lifted_index", "shear", "sweat"],
     "Anomalie": ["anom_t2m", "anom_t850", "anom_z500", "anom_pressione", "anom_pioggia"],
     "Suolo e agricoltura": ["gelate", "temperatura_suolo", "umidita_suolo", "evapotraspirazione", "incendi"],
