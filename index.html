@@ -1,0 +1,159 @@
+<!doctype html>
+<html lang="it">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Previsione stagionale</title>
+<style>
+:root { --sfondo:#f6f7f9; --carta:#fff; --testo:#1d2430; --muto:#5c6878; --bordo:#e1e5ea; --accento:#1f6fb2; --caldo:#c0392b; --freddo:#2471a3; --verde:#2e7d32; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { --sfondo:#12161c; --carta:#1b2129; --testo:#e6eaef; --muto:#9aa6b4; --bordo:#2c3540; --accento:#5aa9e6; --caldo:#e57368; --freddo:#6fb1e3; --verde:#66bb6a; } }
+:root[data-theme="dark"] { --sfondo:#12161c; --carta:#1b2129; --testo:#e6eaef; --muto:#9aa6b4; --bordo:#2c3540; --accento:#5aa9e6; --caldo:#e57368; --freddo:#6fb1e3; --verde:#66bb6a; }
+* { box-sizing: border-box; }
+body { margin:0; background:var(--sfondo); color:var(--testo); font:15px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+.wrap { max-width:1100px; margin:0 auto; padding:16px; }
+h1 { font-size:1.45rem; margin:0 0 4px; } h2 { font-size:1.15rem; margin:0 0 10px; } h3 { font-size:1rem; margin:14px 0 6px; }
+.sotto { color:var(--muto); margin:0 0 14px; }
+.card { background:var(--carta); border:1px solid var(--bordo); border-radius:12px; padding:16px; margin-bottom:14px; }
+.mesi { display:flex; gap:8px; flex-wrap:wrap; margin-bottom:12px; }
+.mesi button, .var button { border:1px solid var(--bordo); background:var(--carta); color:var(--testo); border-radius:20px; padding:7px 14px; font:inherit; cursor:pointer; }
+.mesi button[aria-pressed="true"], .var button[aria-pressed="true"] { background:var(--accento); color:#fff; border-color:var(--accento); }
+.var { display:flex; gap:6px; flex-wrap:wrap; margin:8px 0; }
+.riassunto { display:grid; grid-template-columns:repeat(auto-fit, minmax(220px, 1fr)); gap:10px; }
+.box { border:1px solid var(--bordo); border-radius:10px; padding:12px; }
+.box .grande { font-size:1.6rem; font-weight:700; }
+.caldo { color:var(--caldo); } .freddo { color:var(--freddo); }
+.mappa img { width:100%; height:auto; border-radius:8px; border:1px solid var(--bordo); background:#fff; }
+.griglia2 { display:grid; grid-template-columns:repeat(auto-fit, minmax(300px, 1fr)); gap:12px; }
+table { width:100%; border-collapse:collapse; font-size:.92rem; }
+th, td { text-align:left; padding:6px 8px; border-bottom:1px solid var(--bordo); vertical-align:top; }
+th { color:var(--muto); font-weight:600; }
+.barra { position:relative; height:14px; background:var(--bordo); border-radius:7px; min-width:90px; }
+.barra i { position:absolute; top:0; bottom:0; border-radius:7px; }
+.barra:after { content:""; position:absolute; left:50%; top:-2px; bottom:-2px; width:1px; background:var(--muto); }
+.nota { color:var(--muto); font-size:.86rem; }
+.tabella { overflow-x:auto; }
+ul.spieg { margin:6px 0 0 18px; padding:0; } ul.spieg li { margin:4px 0; }
+.affid { display:inline-block; padding:2px 8px; border-radius:10px; font-size:.82rem; border:1px solid var(--bordo); }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Previsione stagionale</h1>
+  <p class="sotto" id="testa">Carico la previsione…</p>
+
+  <div class="card">
+    <div class="mesi" id="mesi" role="group" aria-label="Mese previsto"></div>
+    <div class="riassunto" id="riassunto"></div>
+  </div>
+
+  <div class="card mappa">
+    <div class="var" id="var" role="group" aria-label="Cosa vedere">
+      <button data-v="temperatura" aria-pressed="true">🌡️ Temperatura</button>
+      <button data-v="pioggia" aria-pressed="false">🌧️ Pioggia</button>
+      <button data-v="abilita_t" aria-pressed="false">🎯 Affidabilità temperatura</button>
+      <button data-v="abilita_p" aria-pressed="false">🎯 Affidabilità pioggia</button>
+    </div>
+    <img id="mappa" alt="Mappa della previsione stagionale">
+    <p class="nota" id="nota-mappa"></p>
+  </div>
+
+  <div class="griglia2">
+    <div class="card">
+      <h2>Perché: gli indici che contano</h2>
+      <ul class="spieg" id="spieg"></ul>
+      <h3>Effetto di ogni indice sull'Italia centrale</h3>
+      <div class="tabella"><table id="contributi"></table></div>
+      <p class="nota">Gli effetti si sommano: la previsione è la somma di tutte le spinte. Ogni effetto è imparato dai dati dal 1950 a oggi, solo nella stessa stagione dell'anno.</p>
+    </div>
+    <div class="card">
+      <h2>Lo stato attuale degli indici</h2>
+      <div class="tabella"><table id="indici"></table></div>
+      <p class="nota">Valori del mese di emissione, in unità standard (circa tra −3 e +3; ±1 è già un segnale netto). Per QBO e vortice polare: differenza dalla media in m/s.</p>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>🏆 Pagella: come sono andate le previsioni passate</h2>
+    <div id="verifica"></div>
+  </div>
+
+  <div class="card">
+    <h2>Come funziona</h2>
+    <p>Il modello non simula l'atmosfera come il WRF: è un modello <b>statistico</b>. Per ogni punto d'Europa ha studiato, mese per mese dal 1950, come lo stato degli indici di teleconnessione (NAO, AO, Scandinavo…), della stratosfera (vortice polare, QBO) e degli oceani (El Niño, Atlantico) si è tradotto nei mesi successivi in temperature e piogge sopra o sotto la media. Aggiunge la tendenza al riscaldamento degli ultimi decenni e la persistenza dell'anomalia appena osservata.</p>
+    <p>Le previsioni a lungo termine sono sempre incerte: sono <b>tendenze</b> rispetto alla media del mese, non il tempo di un giorno preciso. Per questo ogni mappa ha accanto la sua affidabilità storica, misurata rifacendo le previsioni del passato senza far vedere al modello l'anno da indovinare. Dove l'affidabilità è bassa la mappa è puntinata.</p>
+    <p class="nota" id="fonti"></p>
+  </div>
+</div>
+<script>
+"use strict";
+const $ = (id) => document.getElementById(id);
+const nf = (x, d = 1) => (x == null || isNaN(x)) ? "–" : (x > 0 ? "+" : "") + x.toFixed(d).replace(".", ",");
+let D = null, sel = 0, vista = "temperatura";
+const NOTE = {
+  temperatura: "Differenza dalla temperatura media del mese (1991-2020). Rosso più caldo del normale, blu più freddo.",
+  pioggia: "Pioggia del mese rispetto a quella normale (1991-2020), in percentuale. Verde più piovoso, marrone più secco.",
+  abilita_t: "Quanto il modello ci ha preso in passato per la temperatura di questo mese, punto per punto.",
+  abilita_p: "Quanto il modello ci ha preso in passato per la pioggia di questo mese, punto per punto.",
+};
+function giudizio(a) {
+  if (a == null || isNaN(a)) return "–";
+  return a >= 0.5 ? "buona" : a >= 0.3 ? "discreta" : a >= 0.15 ? "scarsa" : "molto bassa";
+}
+function riassunto() {
+  const m = D.mesi[sel], c = m.centro_italia, it = m.italia;
+  const t = c.t, cls = t > 0.15 ? "caldo" : t < -0.15 ? "freddo" : "";
+  const parolaT = t > 0.3 ? "più caldo del normale" : t < -0.3 ? "più freddo del normale" : t > 0.1 ? "leggermente più caldo" : t < -0.1 ? "leggermente più freddo" : "nella media";
+  const p = c.p_perc;
+  const parolaP = p > 15 ? "più piovoso del normale" : p < -15 ? "più secco del normale" : p > 5 ? "leggermente più piovoso" : p < -5 ? "leggermente più secco" : "nella media";
+  $("riassunto").innerHTML =
+    `<div class="box"><div class="nota">Temperatura, Italia centrale</div><div class="grande ${cls}">${nf(t)} °C</div><div>${parolaT} · probabilità di un mese più caldo della media: <b>${c.prob_caldo}%</b></div><div class="nota">Affidabilità storica: <span class="affid">${giudizio(c.abilita_t)}</span></div></div>` +
+    `<div class="box"><div class="nota">Pioggia, Italia centrale</div><div class="grande">${nf(p, 0)}%</div><div>${parolaP} · probabilità di un mese più piovoso della media: <b>${c.prob_piovoso}%</b></div><div class="nota">Affidabilità storica: <span class="affid">${giudizio(c.abilita_p)}</span></div></div>` +
+    `<div class="box"><div class="nota">Tutta Italia</div><div><b>${nf(it.t)} °C</b> · pioggia <b>${nf(it.p_perc, 0)}%</b></div><div class="nota">Probabilità mese più caldo ${it.prob_caldo}% · più piovoso ${it.prob_piovoso}%</div></div>`;
+  $("spieg").innerHTML = (m.spiegazione.length ? m.spiegazione : ["Nessun indice dà oggi una spinta netta: la previsione resta vicina alla media."]).map((s) => `<li>${s.replace(/(\d)\.(\d)/g, "$1,$2")}</li>`).join("");
+  const mx = Math.max(0.3, ...m.contributi.map((x) => Math.abs(x.t)));
+  $("contributi").innerHTML = "<tr><th>Indice</th><th>Temperatura</th><th></th><th>Pioggia</th></tr>" +
+    [...m.contributi].sort((a, b) => Math.abs(b.t) - Math.abs(a.t)).map((x) => {
+      const w = Math.min(50, 50 * Math.abs(x.t) / mx), col = x.t > 0 ? "var(--caldo)" : "var(--freddo)";
+      const pos = x.t > 0 ? `left:50%;width:${w}%` : `right:50%;width:${w}%`;
+      return `<tr><td>${x.nome}</td><td>${nf(x.t, 2)} °C</td><td><div class="barra"><i style="${pos};background:${col}"></i></div></td><td>${nf(x.p, 0)}%</td></tr>`;
+    }).join("");
+}
+function mappa() {
+  const m = D.mesi[sel];
+  $("mappa").src = m.immagini[vista] + "?v=" + encodeURIComponent(D.emesso_utc);
+  $("nota-mappa").textContent = NOTE[vista];
+  document.querySelectorAll("#var button").forEach((b) => b.setAttribute("aria-pressed", b.dataset.v === vista));
+  document.querySelectorAll("#mesi button").forEach((b, k) => b.setAttribute("aria-pressed", k === sel));
+}
+function indici() {
+  $("indici").innerHTML = "<tr><th>Indice</th><th>Valore</th><th>Che cosa significa la fase positiva</th></tr>" +
+    Object.entries(D.indici).map(([k, x]) => `<tr><td><b>${k}</b><br><span class="nota">${x.nome}</span></td><td>${nf(x.valore, 2)}</td><td class="nota">${x.positivo}</td></tr>`).join("");
+}
+function verifica() {
+  const v = D.verifica || [];
+  if (!v.length) {
+    $("verifica").innerHTML = '<p class="nota">La pagella si riempie da sola: ogni previsione emessa viene archiviata e, quando il mese è passato ed è disponibile nei dati della rianalisi, viene confrontata con quello che è successo davvero. Intanto l\'affidabilità storica (rifacendo le previsioni dal 1950) è nelle mappe "Affidabilità".</p>';
+    return;
+  }
+  const media = (a) => a.length ? a.reduce((s, x) => s + x, 0) / a.length : NaN;
+  const T = v.filter((x) => x.variabile === "t"), P = v.filter((x) => x.variabile === "p");
+  $("verifica").innerHTML =
+    `<p>Previsioni verificate: <b>${T.length}</b> per la temperatura. Segno giusto (più caldo/più freddo) in media sul <b>${Math.round(media(T.map((x) => x.segno_giusto)))}%</b> dell'Europa; per la pioggia <b>${Math.round(media(P.map((x) => x.segno_giusto)))}%</b>. Il 50% è quello che si otterrebbe tirando a caso.</p>` +
+    '<div class="tabella"><table><tr><th>Mese</th><th>Emessa</th><th>Variabile</th><th>Prevista (centro Italia)</th><th>Osservata</th><th>Segno giusto in Europa</th></tr>' +
+    v.slice(-24).reverse().map((x) => `<tr><td>${x.mese}</td><td>${x.emessa.slice(0, 4)}-${x.emessa.slice(4)}</td><td>${x.variabile === "t" ? "temperatura" : "pioggia"}</td><td>${nf(x.prev_centro, x.variabile === "t" ? 1 : 2)}</td><td>${nf(x.oss_centro, x.variabile === "t" ? 1 : 2)}</td><td>${x.segno_giusto}%</td></tr>`).join("") +
+    '</table></div><p class="nota">Pioggia in mm al giorno di differenza dalla media.</p>';
+}
+fetch("stagionale.json?t=" + Date.now(), { cache: "no-store" }).then((r) => r.json()).then((d) => {
+  D = d;
+  const [a, m] = d.mese_emissione.split("-");
+  const MESI = ["gennaio","febbraio","marzo","aprile","maggio","giugno","luglio","agosto","settembre","ottobre","novembre","dicembre"];
+  $("testa").textContent = `Tendenza dei prossimi tre mesi in Europa, calcolata con gli indici di ${MESI[+m - 1]} ${a}. Aggiornata il ${new Date(d.emesso_utc).toLocaleDateString("it-IT", { day: "numeric", month: "long", year: "numeric" })}.`;
+  $("mesi").innerHTML = d.mesi.map((x, k) => `<button aria-pressed="${k === 0}">${x.nome_mese}</button>`).join("");
+  document.querySelectorAll("#mesi button").forEach((b, k) => b.onclick = () => { sel = k; riassunto(); mappa(); });
+  document.querySelectorAll("#var button").forEach((b) => b.onclick = () => { vista = b.dataset.v; mappa(); });
+  $("fonti").textContent = "Fonti: " + d.fonti.join(" · ") + ". Dati della rianalisi disponibili fino a " + d.rianalisi_fino + ".";
+  riassunto(); mappa(); indici(); verifica();
+}).catch(() => { $("testa").textContent = "La previsione stagionale non è ancora disponibile."; });
+</script>
+</body>
+</html>
