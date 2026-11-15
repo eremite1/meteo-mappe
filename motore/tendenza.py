@@ -146,6 +146,43 @@ def rianalisi(n, archivio):
     return serie
 
 
+def completa_con_era5(r, n):
+    """La rianalisi NCEP/NCAR non viene piu' aggiornata (si ferma a marzo 2026): i giorni mancanti si completano con
+    ERA5 (Open-Meteo), riportato alla stessa scala della rianalisi con i giorni in cui ci sono entrambe."""
+    import requests
+    oggi = G0 + timedelta(days=n - 1)
+    punti = [(41.6, 11.9), (41.6, 13.6), (42.9, 11.9), (42.9, 13.6), (42.2, 12.8)]
+    T, P = [], []
+    for la, lo in punti:
+        try:
+            u = ("https://archive-api.open-meteo.com/v1/archive?latitude=%s&longitude=%s&start_date=2023-01-01&end_date=%s"
+                 "&daily=temperature_2m_mean,precipitation_sum&timezone=GMT" % (la, lo, oggi.isoformat()))
+            j = requests.get(u, timeout=60, headers=st.UA).json()["daily"]
+            T.append(np.array([np.nan if v is None else v for v in j["temperature_2m_mean"]], dtype="float64"))
+            P.append(np.array([np.nan if v is None else v for v in j["precipitation_sum"]], dtype="float64"))
+            tempi = j["time"]
+        except Exception as e:  # noqa: BLE001
+            log("  ERA5 non disponibile:", e)
+            return
+    T, P = np.nanmean(T, axis=0), np.nanmean(P, axis=0)
+    ks = np.array([gi(date.fromisoformat(t)) for t in tempi])
+    ok = (ks < n) & (ks >= 0)
+    ks, T, P = ks[ok], T[ok], P[ok]
+    for nome, v, molt in (("T", T, False), ("P", P, True)):
+        s = r[nome]
+        insieme = np.isfinite(s[ks]) & np.isfinite(v)
+        if insieme.sum() < 60:
+            continue
+        if molt:
+            f = np.nansum(s[ks][insieme]) / max(np.nansum(v[insieme]), 1e-6)
+            nuovo = v * f
+        else:
+            nuovo = v + np.nanmean(s[ks][insieme] - v[insieme])
+        manca = ~np.isfinite(s[ks]) & np.isfinite(nuovo)
+        s[ks[manca]] = nuovo[manca]
+        log(f"  {nome}: completati con ERA5 {manca.sum()} giorni")
+
+
 def anomalie(s, n):
     """Anomalia rispetto al clima 1991-2020 del giorno dell'anno (lisciato su 31 giorni)."""
     doy = np.array([(G0 + timedelta(days=k)).timetuple().tm_yday - 1 for k in range(n)])
@@ -248,7 +285,8 @@ def main():
     d["RMM1"], d["RMM2"] = serie_mjo(n)
     log("Rianalisi giornaliera (Italia centrale e vortice polare)...")
     r = rianalisi(n, a.archivio)
-    np.savez_compressed(os.path.join(a.out, "rianalisi.npz"), **r)
+    np.savez_compressed(os.path.join(a.out, "rianalisi.npz"), **r)      # solo NCEP/NCAR (ERA5 si riprende ogni volta)
+    completa_con_era5(r, n)
     aT, climaT, doy = anomalie(r["T"], n)
     aP, climaP, _ = anomalie(r["P"], n)
     d["aU10"], _, _ = anomalie(r["U10"], n)
