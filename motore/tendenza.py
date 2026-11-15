@@ -288,9 +288,12 @@ def main():
                 "esempi": len(righe), "immagini": {}}
         sotto = f"Tendenza MeteoNerola dagli indici al {oggi_d:%d/%m/%Y} · puntinato: affidabilità storica bassa (correlazione < 0,2)"
         for var, Y in (("t", np.array(yT)), ("p", np.array(yP))):
+            # gli anni che mancano nell'archivio (download non riuscito) sono righe intere vuote: si tolgono
+            riga_ok = np.isfinite(Y).mean(axis=1) > 0.5
+            Y = Y[riga_ok]
             ym = np.nanmean(Y, axis=0)
-            log(f"    {var}: punti con dati completi {np.isfinite(Y).all(axis=0).mean():.0%}, buchi {np.isnan(Y).mean():.1%}")
-            B, r, sig = allena(Xs, Y - ym, anni)
+            log(f"    {var}: {riga_ok.sum()} esempi su {len(riga_ok)}, punti con dati completi {np.isfinite(Y).all(axis=0).mean():.0%}, buchi {np.isnan(Y).mean():.1%}")
+            B, r, sig = allena(Xs[riga_ok], Y - ym, anni[riga_ok])
             prev = (xs @ B + ym).reshape(ny, nx)
             contrib = (xs[:, None] * B).reshape(len(xs), ny, nx)
             prob = st.prob_sopra(prev, sig.reshape(ny, nx))
