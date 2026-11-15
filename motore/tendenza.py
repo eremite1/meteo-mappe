@@ -200,7 +200,7 @@ def allena(Xs, Y, anni):
     migliore_r = np.full(Y.shape[1], -9.0)
     B = np.zeros((Xs.shape[1], Y.shape[1]))
     sig = np.ones(Y.shape[1])
-    ok = np.isfinite(Y).all(axis=0)
+    ok = np.isfinite(Y).mean(axis=0) > 0.8          # pochi buchi nei dati: si riempiono con la media (anomalia 0)
     Yc = np.nan_to_num(Y)
     for lam in LAMBDA:
         prev = np.zeros_like(Yc)
@@ -289,6 +289,7 @@ def main():
         sotto = f"Tendenza MeteoNerola dagli indici al {oggi_d:%d/%m/%Y} · puntinato: affidabilità storica bassa (correlazione < 0,2)"
         for var, Y in (("t", np.array(yT)), ("p", np.array(yP))):
             ym = np.nanmean(Y, axis=0)
+            log(f"    {var}: punti con dati completi {np.isfinite(Y).all(axis=0).mean():.0%}, buchi {np.isnan(Y).mean():.1%}")
             B, r, sig = allena(Xs, Y - ym, anni)
             prev = (xs @ B + ym).reshape(ny, nx)
             contrib = (xs[:, None] * B).reshape(len(xs), ny, nx)
