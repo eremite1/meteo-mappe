@@ -106,7 +106,12 @@ def rianalisi_anno(anno):
         da = ds[var]
         da = da.assign_coords(lon=(((da.lon + 180) % 360) - 180)).sortby("lon").sortby("lat")
         v = da.sel(lat=slice(*BOX["lat"]), lon=slice(*BOX["lon"])).mean(("lat", "lon")).load()
-        out[chiave] = (v["time"].values, v.values.astype("float64"))
+        x = v.values.astype("float64")
+        if chiave == "T" and np.nanmean(x) > 100:
+            x = x - 273.15                                    # kelvin -> gradi
+        if chiave == "P":
+            x = x * 86400.0                                   # kg/m2/s -> mm/giorno
+        out[chiave] = (v["time"].values, x)
     ds = xr.open_dataset(DATASET + f"pressure/uwnd.{anno}.nc")
     u = ds["uwnd"].sel(level=10, lat=60.0).mean("lon").load()
     out["U10"] = (u["time"].values, u.values.astype("float64"))
@@ -122,6 +127,7 @@ def rianalisi(n, archivio):
         for k in serie:
             m = min(n, len(z[k]))
             serie[k][:m] = z[k][:m]
+        serie["T"][serie["T"] > 100] = np.nan
     oggi = datetime.now(timezone.utc).date()
     for anno in range(1950, oggi.year + 1):
         k0, k1 = gi(date(anno, 1, 1)), min(n, gi(date(anno, 12, 31)) + 1)
@@ -140,9 +146,6 @@ def rianalisi(n, archivio):
                 if 0 <= i < n:
                     serie[k][i] = x
         log(f"  rianalisi {anno}: ok")
-    if np.nanmean(serie["T"]) > 100:
-        serie["T"] = serie["T"] - 273.15
-    serie["P"] = np.where(serie["P"] < 0.01, serie["P"] * 86400.0, serie["P"])    # kg/m2/s -> mm/giorno
     return serie
 
 
@@ -153,17 +156,23 @@ def completa_con_era5(r, n):
     oggi = G0 + timedelta(days=n - 1)
     punti = [(41.6, 11.9), (41.6, 13.6), (42.9, 11.9), (42.9, 13.6), (42.2, 12.8)]
     T, P = [], []
-    for la, lo in punti:
+    u = ("https://archive-api.open-meteo.com/v1/archive?latitude=%s&longitude=%s&start_date=2023-01-01&end_date=%s"
+         "&daily=temperature_2m_mean,precipitation_sum&timezone=GMT"
+         % (",".join(str(p_[0]) for p_ in punti), ",".join(str(p_[1]) for p_ in punti), oggi.isoformat()))
+    risposta = None
+    for _ in range(4):
         try:
-            u = ("https://archive-api.open-meteo.com/v1/archive?latitude=%s&longitude=%s&start_date=2023-01-01&end_date=%s"
-                 "&daily=temperature_2m_mean,precipitation_sum&timezone=GMT" % (la, lo, oggi.isoformat()))
-            j = requests.get(u, timeout=60, headers=st.UA).json()["daily"]
-            T.append(np.array([np.nan if v is None else v for v in j["temperature_2m_mean"]], dtype="float64"))
-            P.append(np.array([np.nan if v is None else v for v in j["precipitation_sum"]], dtype="float64"))
-            tempi = j["time"]
+            risposta = requests.get(u, timeout=180, headers=st.UA).json()
+            break
         except Exception as e:  # noqa: BLE001
-            log("  ERA5 non disponibile:", e)
-            return
+            log("  ERA5, riprovo:", e)
+    if risposta is None:
+        return
+    for j in (risposta if isinstance(risposta, list) else [risposta]):
+        d_ = j["daily"]
+        T.append(np.array([np.nan if v is None else v for v in d_["temperature_2m_mean"]], dtype="float64"))
+        P.append(np.array([np.nan if v is None else v for v in d_["precipitation_sum"]], dtype="float64"))
+        tempi = d_["time"]
     T, P = np.nanmean(T, axis=0), np.nanmean(P, axis=0)
     ks = np.array([gi(date.fromisoformat(t)) for t in tempi])
     ok = (ks < n) & (ks >= 0)
