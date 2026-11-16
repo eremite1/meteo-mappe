@@ -176,8 +176,9 @@ def confini(percorso):
         for l in ax.lines:
             l.set_color(c); l.set_linewidth(lw * (1 if l.get_linewidth() > .6 else .6))
     for c, (x, y) in CITTA.items():
-        ax.plot(x, y, "o", ms=4 if c == "Nerola" else 3, color="#d0002a" if c == "Nerola" else "#111")
-        ax.text(x + .03, y + .03, c, fontsize=9 if c == "Nerola" else 8, weight="bold", color="#d0002a" if c == "Nerola" else "#111")
+        ax.plot(x, y, "o", ms=7 if c == "Nerola" else 5, color="#d0002a" if c == "Nerola" else "#111")
+        ax.text(x + .04, y + .04, c, fontsize=17 if c == "Nerola" else 14, weight="bold", color="#d0002a" if c == "Nerola" else "#111",
+                path_effects=[__import__("matplotlib.patheffects", fromlist=["x"]).withStroke(linewidth=3, foreground="white")])
     ax.set_xlim(V.LON0, V.LON0 + V.PASSO * V.NX); ax.set_ylim(V.LAT0, V.LAT0 + V.PASSO * V.NY)
     fig.savefig(percorso, transparent=True)
     plt.close(fig)
