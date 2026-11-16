@@ -916,12 +916,13 @@ def esegui(chiave, max_istanti=None, processi=None, aree=None):
 
     # pioggia cumulata sulla griglia comune del Lazio, per la pagella unica contro il radar (motore/verifica.py)
     try:
-        if "lazio" in L.aree:
+        area_g = "lazio" if "lazio" in L.aree else ("italia" if "italia" in L.aree else None)   # ICON-EU non ha l'area Lazio
+        if area_g:
             from . import verifica as V
-            ds = L.fonti["lazio"][0]
-            if (ds, "lazio", "precipitation") in L._cum:
-                cum, tempi = L._cum[(ds, "lazio", "precipitation")]
-                la, lo = L.coord_cum[(ds, "lazio")]
+            ds = L.fonti[area_g][0]
+            if (ds, area_g, "precipitation") in L._cum:
+                cum, tempi = L._cum[(ds, area_g, "precipitation")]
+                la, lo = L.coord_cum[(ds, area_g)]
                 V.salva_griglia(os.path.join(USCITA, "griglia_lazio.npz"), L.corsa, tempi, V.su_griglia(la, lo, cum))
                 log("Pioggia sulla griglia comune salvata (pagella unica)")
     except Exception as e:

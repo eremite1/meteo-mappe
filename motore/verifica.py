@@ -584,6 +584,11 @@ def main():
     if a.radar and Path(a.radar).exists():
         nuovi, stato = confronta(a.storico, radar_3ore(a.radar), adesso)
         print(f"confronti nuovi con il radar: {nuovi}")
+        try:   # confronto ottico interattivo: ogni corsa di ogni modello contro il radar, giorno per giorno (pagina del sito)
+            from motore import confronto
+            confronto.aggiorna(a.storico, radar_3ore(a.radar), adesso)
+        except Exception as e:  # noqa: BLE001
+            print("ATTENZIONE: confronto giornaliero non pronto:", e)
         try:   # tavola giornaliera: pioggia del radar contro tutti i modelli, a occhio
             from motore import tavola
             print("tavole della pioggia disegnate:", tavola.aggiorna(a.storico, radar_3ore(a.radar), adesso))
