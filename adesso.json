@@ -1,0 +1,404 @@
+{
+ "inizio": "2026-11-16T03:00Z",
+ "fine": "2026-11-16T06:00Z",
+ "radar": {
+  "area": 69,
+  "max": 33.9,
+  "nerola": 16.0
+ },
+ "modelli": [
+  {
+   "modello": "wrf_gfs_1km",
+   "corsa": "15/11 18",
+   "scadenza": 12,
+   "voto35": 97,
+   "voto7": 93,
+   "quantita": 0.61,
+   "area": 79,
+   "sposta_km": [
+    -41,
+    47
+   ],
+   "nerola": 1.3
+  },
+  {
+   "modello": "gfs",
+   "corsa": "15/11 18",
+   "scadenza": 12,
+   "voto35": 94,
+   "voto7": 91,
+   "quantita": 0.94,
+   "area": 77,
+   "sposta_km": [
+    19,
+    0
+   ],
+   "nerola": 6.9
+  },
+  {
+   "modello": "arome",
+   "corsa": "15/11 21",
+   "scadenza": 9,
+   "voto35": 92,
+   "voto7": 88,
+   "quantita": 0.73,
+   "area": 72,
+   "sposta_km": [
+    0,
+    3
+   ],
+   "nerola": 6.1
+  },
+  {
+   "modello": "ukmo",
+   "corsa": "15/11 12",
+   "scadenza": 18,
+   "voto35": 87,
+   "voto7": 82,
+   "quantita": 0.87,
+   "area": 77,
+   "sposta_km": [
+    0,
+    -14
+   ],
+   "nerola": 14.6
+  },
+  {
+   "modello": "ecmwf",
+   "corsa": "15/11 12",
+   "scadenza": 18,
+   "voto35": 86,
+   "voto7": 79,
+   "quantita": 0.57,
+   "area": 66,
+   "sposta_km": [
+    10,
+    -39
+   ],
+   "nerola": 5.5
+  },
+  {
+   "modello": "icon2i",
+   "corsa": "15/11 12",
+   "scadenza": 18,
+   "voto35": 82,
+   "voto7": 74,
+   "quantita": 0.46,
+   "area": 46,
+   "sposta_km": [
+    0,
+    0
+   ],
+   "nerola": 0.3
+  },
+  {
+   "modello": "wrf_gfs_3km",
+   "corsa": "15/11 18",
+   "scadenza": 12,
+   "voto35": 75,
+   "voto7": 70,
+   "quantita": 0.61,
+   "area": 40,
+   "sposta_km": [
+    17,
+    0
+   ],
+   "nerola": 1.6
+  },
+  {
+   "modello": "wrf_fisica_gfs_f1",
+   "corsa": "15/11 00",
+   "scadenza": 30,
+   "voto35": 64,
+   "voto7": 59,
+   "quantita": 0.45,
+   "area": 29,
+   "sposta_km": [
+    4,
+    19
+   ],
+   "nerola": 1.2
+  },
+  {
+   "modello": "wrf_iconeu_1km",
+   "corsa": "15/11 18",
+   "scadenza": 12,
+   "voto35": 61,
+   "voto7": 57,
+   "quantita": 0.23,
+   "area": 35,
+   "sposta_km": [
+    6,
+    -6
+   ],
+   "nerola": 0.0
+  },
+  {
+   "modello": "wrf_iconeu_3km",
+   "corsa": "15/11 18",
+   "scadenza": 12,
+   "voto35": 55,
+   "voto7": 50,
+   "quantita": 0.43,
+   "area": 28,
+   "sposta_km": null,
+   "nerola": 0.4
+  },
+  {
+   "modello": "wrf_fisica_gfs_f3",
+   "corsa": "15/11 00",
+   "scadenza": 30,
+   "voto35": 50,
+   "voto7": 47,
+   "quantita": 0.24,
+   "area": 20,
+   "sposta_km": [
+    10,
+    36
+   ],
+   "nerola": 0.7
+  },
+  {
+   "modello": "wrf_fisica_iconeu_f1",
+   "corsa": "15/11 00",
+   "scadenza": 30,
+   "voto35": 49,
+   "voto7": 45,
+   "quantita": 0.31,
+   "area": 25,
+   "sposta_km": [
+    43,
+    0
+   ],
+   "nerola": 0.2
+  },
+  {
+   "modello": "wrf_icon2i_1km",
+   "corsa": "15/11 12",
+   "scadenza": 18,
+   "voto35": 47,
+   "voto7": 45,
+   "quantita": 0.26,
+   "area": 26,
+   "sposta_km": [
+    6,
+    -8
+   ],
+   "nerola": 0.0
+  },
+  {
+   "modello": "wrf_fisica_gfs_f2",
+   "corsa": "15/11 00",
+   "scadenza": 30,
+   "voto35": 43,
+   "voto7": 40,
+   "quantita": 0.27,
+   "area": 17,
+   "sposta_km": [
+    12,
+    33
+   ],
+   "nerola": 0.0
+  },
+  {
+   "modello": "wrf_fisica_gfs_f4",
+   "corsa": "15/11 00",
+   "scadenza": 30,
+   "voto35": 43,
+   "voto7": 41,
+   "quantita": 0.28,
+   "area": 17,
+   "sposta_km": [
+    8,
+    39
+   ],
+   "nerola": 0.0
+  },
+  {
+   "modello": "wrf_ecmwf_1km",
+   "corsa": "15/11 12",
+   "scadenza": 18,
+   "voto35": 38,
+   "voto7": 38,
+   "quantita": 0.14,
+   "area": 21,
+   "sposta_km": [
+    29,
+    -30
+   ],
+   "nerola": 0.0
+  },
+  {
+   "modello": "wrf_fisica_ecmwf_f1",
+   "corsa": "14/11 18",
+   "scadenza": 36,
+   "voto35": 36,
+   "voto7": 33,
+   "quantita": 0.16,
+   "area": 15,
+   "sposta_km": [
+    25,
+    19
+   ],
+   "nerola": 0.0
+  },
+  {
+   "modello": "wrf_fisica_iconeu_f4",
+   "corsa": "15/11 00",
+   "scadenza": 30,
+   "voto35": 33,
+   "voto7": 32,
+   "quantita": 0.19,
+   "area": 15,
+   "sposta_km": null,
+   "nerola": 1.0
+  },
+  {
+   "modello": "wrf_fisica_icon2i_f1",
+   "corsa": "15/11 00",
+   "scadenza": 30,
+   "voto35": 32,
+   "voto7": 28,
+   "quantita": 0.15,
+   "area": 16,
+   "sposta_km": [
+    4,
+    8
+   ],
+   "nerola": 0.0
+  },
+  {
+   "modello": "wrf_fisica_iconeu_f2",
+   "corsa": "15/11 00",
+   "scadenza": 30,
+   "voto35": 32,
+   "voto7": 32,
+   "quantita": 0.17,
+   "area": 14,
+   "sposta_km": null,
+   "nerola": 0.8
+  },
+  {
+   "modello": "wrf_icon2i_3km",
+   "corsa": "15/11 12",
+   "scadenza": 18,
+   "voto35": 32,
+   "voto7": 28,
+   "quantita": 0.21,
+   "area": 16,
+   "sposta_km": [
+    50,
+    -33
+   ],
+   "nerola": 0.0
+  },
+  {
+   "modello": "wrf_fisica_ecmwf_f2",
+   "corsa": "14/11 18",
+   "scadenza": 36,
+   "voto35": 30,
+   "voto7": 28,
+   "quantita": 0.08,
+   "area": 11,
+   "sposta_km": [
+    19,
+    19
+   ],
+   "nerola": 0.0
+  },
+  {
+   "modello": "wrf_ecmwf_3km",
+   "corsa": "15/11 12",
+   "scadenza": 18,
+   "voto35": 28,
+   "voto7": 25,
+   "quantita": 0.12,
+   "area": 14,
+   "sposta_km": null,
+   "nerola": 0.0
+  },
+  {
+   "modello": "wrf_fisica_ecmwf_f4",
+   "corsa": "14/11 18",
+   "scadenza": 36,
+   "voto35": 26,
+   "voto7": 24,
+   "quantita": 0.08,
+   "area": 9,
+   "sposta_km": [
+    23,
+    22
+   ],
+   "nerola": 0.0
+  },
+  {
+   "modello": "wrf_fisica_iconeu_f3",
+   "corsa": "15/11 00",
+   "scadenza": 30,
+   "voto35": 26,
+   "voto7": 24,
+   "quantita": 0.12,
+   "area": 10,
+   "sposta_km": null,
+   "nerola": 0.4
+  },
+  {
+   "modello": "wrf_fisica_icon2i_f2",
+   "corsa": "15/11 00",
+   "scadenza": 30,
+   "voto35": 17,
+   "voto7": 16,
+   "quantita": 0.07,
+   "area": 8,
+   "sposta_km": [
+    14,
+    14
+   ],
+   "nerola": 0.0
+  },
+  {
+   "modello": "wrf_fisica_icon2i_f4",
+   "corsa": "15/11 00",
+   "scadenza": 30,
+   "voto35": 16,
+   "voto7": 15,
+   "quantita": 0.07,
+   "area": 8,
+   "sposta_km": [
+    10,
+    14
+   ],
+   "nerola": 0.0
+  },
+  {
+   "modello": "wrf_fisica_icon2i_f3",
+   "corsa": "15/11 00",
+   "scadenza": 30,
+   "voto35": 3,
+   "voto7": 3,
+   "quantita": 0.02,
+   "area": 3,
+   "sposta_km": null,
+   "nerola": 0.0
+  },
+  {
+   "modello": "wrf_fisica_ecmwf_f3",
+   "corsa": "14/11 18",
+   "scadenza": 36,
+   "voto35": 2,
+   "voto7": 1,
+   "quantita": 0.01,
+   "area": 1,
+   "sposta_km": [
+    27,
+    36
+   ],
+   "nerola": 0.0
+  },
+  {
+   "modello": "wrf_ecmwf_333m",
+   "corsa": "15/11 12",
+   "nota": "fuori dal Lazio"
+  }
+ ]
+}
