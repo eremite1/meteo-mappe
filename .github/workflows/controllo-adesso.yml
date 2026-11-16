@@ -1,0 +1,60 @@
+name: Controllo adesso (radar contro tutti i modelli)
+
+# Avvio a mano: la pioggia delle ultime ore vista dal radar confrontata con l'ultima corsa di ogni modello e di ogni WRF.
+# Risultato nel registro e nel ramo "controllo" (adesso.png, adesso.json).
+on:
+  workflow_dispatch:
+    inputs:
+      ore:
+        description: "ore da confrontare (1, 3, 6)"
+        default: "3"
+
+permissions:
+  contents: write
+
+jobs:
+  controllo:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+    - uses: actions/checkout@v4
+    - uses: actions/setup-python@v5
+      with:
+        python-version: '3.11'
+    - run: pip install -q numpy matplotlib scipy
+    - name: Radar e WRF
+      run: |
+        curl -fsSL --retry 4 -o radar_orario.npz "https://raw.githubusercontent.com/eremite1/nowcasting-nerola/risultati/radar_orario.npz"
+        mkdir -p wrf
+        U=https://raw.githubusercontent.com/eremite1/wrf-nerola/risultati
+        W=""
+        for kv in wrf_ecmwf_3km=d01_tutto wrf_ecmwf_1km=d02_tutto wrf_ecmwf_333m=fine/d03_tutto wrf_gfs_3km=gfs/d01_tutto wrf_gfs_1km=gfs/d02_tutto \
+                  wrf_iconeu_3km=iconeu/d01_tutto wrf_iconeu_1km=iconeu/d02_tutto wrf_icon2i_3km=icon2i/d01_tutto wrf_icon2i_1km=icon2i/d02_tutto; do
+          k=${kv%%=*}; f=wrf/$k.npz
+          curl -fsSL --retry 3 -o $f "$U/${kv#*=}.npz" && W="$W $k=$f" || rm -f $f
+        done
+        F=https://raw.githubusercontent.com/eremite1/wrf-nerola/fisica
+        for f in $(curl -fsSL "$F/indice.json" 2>/dev/null | python3 -c "import json,sys;print(' '.join(json.load(sys.stdin).get('file',[])))" 2>/dev/null); do
+          curl -fsSL --retry 3 -o "wrf/fis_$f" "$F/$f" && W="$W wrf_fisica_${f%.npz}=wrf/fis_$f" || rm -f "wrf/fis_$f"
+        done
+        echo "$W" > wrf_elenco.txt
+    - name: Griglie dei modelli delle Mappe Lazio
+      env:
+        TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      run: |
+        REMOTO="https://x-access-token:${TOKEN}@github.com/${{ github.repository }}.git"
+        G=""
+        for m in $(git ls-remote --heads "$REMOTO" 'mappe-*' | sed 's|.*refs/heads/mappe-||'); do
+          git fetch -q --depth 1 "$REMOTO" "mappe-$m" 2>/dev/null || continue
+          git show "FETCH_HEAD:griglia_lazio.npz" > "griglia_$m.npz" 2>/dev/null && G="$G $m=griglia_$m.npz" || rm -f "griglia_$m.npz"
+        done
+        echo "$G" > griglie_elenco.txt
+    - name: Confronto
+      run: |
+        python -m motore.adesso --radar radar_orario.npz --ore "${{ inputs.ore || 3 }}" --griglie $(cat griglie_elenco.txt) --wrf $(cat wrf_elenco.txt) --uscita controllo
+    - name: Salvo il risultato nel ramo controllo
+      env:
+        TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      run: |
+        cd controllo && git init -q -b controllo && git config user.name actions-user && git config user.email actions@github.com
+        git add -A && git commit -qm "controllo adesso" && git push -q -f "https://x-access-token:${TOKEN}@github.com/${{ github.repository }}.git" controllo
