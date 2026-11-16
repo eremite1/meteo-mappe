@@ -160,10 +160,37 @@ def giorno(storico, per_ora, g, adesso):
             "migliore": migliore}
 
 
+def confini(percorso):
+    """Coste, confini regionali e capoluoghi sulla griglia comune, PNG trasparente da sovrapporre alle mappe (una volta sola)."""
+    if percorso.exists():
+        return
+    import matplotlib
+    matplotlib.use("Agg")
+    import matplotlib.pyplot as plt
+    from motore.tavola import _confini, CITTA
+    k = 6
+    fig = plt.figure(figsize=(V.NX * k / 100, V.NY * k / 100), dpi=100)
+    ax = fig.add_axes([0, 0, 1, 1]); ax.axis("off")
+    _confini(ax)
+    for lw, c in ((1.6, "#222"),):
+        for l in ax.lines:
+            l.set_color(c); l.set_linewidth(lw * (1 if l.get_linewidth() > .6 else .6))
+    for c, (x, y) in CITTA.items():
+        ax.plot(x, y, "o", ms=4 if c == "Nerola" else 3, color="#d0002a" if c == "Nerola" else "#111")
+        ax.text(x + .03, y + .03, c, fontsize=9 if c == "Nerola" else 8, weight="bold", color="#d0002a" if c == "Nerola" else "#111")
+    ax.set_xlim(V.LON0, V.LON0 + V.PASSO * V.NX); ax.set_ylim(V.LAT0, V.LAT0 + V.PASSO * V.NY)
+    fig.savefig(percorso, transparent=True)
+    plt.close(fig)
+
+
 def aggiorna(storico, per_ora, adesso):
     """Rifa oggi e ieri (arrivano corse e ore di radar nuove); i giorni piu' vecchi solo se mancano."""
     base = Path(storico) / "confronto"
     base.mkdir(parents=True, exist_ok=True)
+    try:
+        confini(base / "confini.png")
+    except Exception as e:  # noqa: BLE001
+        print("confini non disegnati:", e)
     ip = base / "indice.json"
     vecchio = {d["giorno"]: d for d in json.loads(ip.read_text()).get("giorni", [])} if ip.exists() else {}
     oggi = adesso.replace(hour=0, minute=0, second=0, microsecond=0)
