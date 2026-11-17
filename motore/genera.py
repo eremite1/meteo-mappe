@@ -174,7 +174,7 @@ def prepara_terreno(dem, lat_f, lon_f):
 # ---------------------------------------------------------------------------
 # le stazioni sono quelle già raccolte dalla pagella di WRF Nerola (aeroporti e Protezione Civile)
 URL_STAZIONI = "https://raw.githubusercontent.com/eremite1/wrf-nerola/storico/osservazioni.csv"
-CAMPI_PUNTI = ["corsa", "valido", "ore", "passo", "id", "T", "Td", "V", "P", "h"]
+CAMPI_PUNTI = ["corsa", "valido", "ore", "passo", "id", "T", "Td", "V", "P", "h", "G"]   # G: «che tempo fa» (pagella unica)
 
 
 def carica_stazioni(lat, lon):
@@ -233,13 +233,17 @@ def valori_punti(ctx, L, h, area="lazio"):
     V = prendi(lambda: ctx.vel("10m"))
     P = prendi(lambda: ctx.acc("precipitation"), 2) if h > 0 else [None] * len(punti)
     z = [round(float(x)) for x in L.terreno["z"][iy, ix]] if (L.terreno is not None and area == "lazio") else [None] * len(punti)
+    N = prendi(ctx.nuvole, 0)
+    from .unica import classe_comune
+    passo = L.passo[area] or 1
     corsa = L.corsa.strftime("%Y-%m-%dT%H:%MZ")
     valido = ctx.t.strftime("%Y-%m-%dT%H:%MZ")
     righe = []
     for n, (sid, _, _) in enumerate(punti):
         if T[n] is None:
             continue                                  # fuori dal dominio del modello (es. AROME a sud)
-        righe.append([area, corsa, valido, h, L.passo[area], sid, T[n], Td[n], V[n], P[n], z[n]])
+        g = classe_comune(N[n], T[n], Td[n], None if P[n] is None else P[n] / passo)
+        righe.append([area, corsa, valido, h, L.passo[area], sid, T[n], Td[n], V[n], P[n], z[n], g])
     return righe
 
 

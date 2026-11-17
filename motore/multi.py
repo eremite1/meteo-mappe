@@ -26,6 +26,7 @@ import numpy as np
 import requests
 
 from . import genera as G
+from .unica import classe_comune
 from .catalogo import PARAMETRI, MODELLI
 
 AREE_MULTI = {
@@ -143,36 +144,104 @@ def dissolvenza(w, t):
     return {m: v / s for m, v in x.items()}
 
 
-SFUMA_CELLE = 20      # ~10 km: vicino al bordo del suo territorio un modello pesa sempre meno
+# Bordo del territorio di un modello che non copre tutto (AROME a sud del Lazio).
+# Prima il suo peso scendeva a zero in 10 km dal bordo: con piogge estese e intense, dove AROME e gli altri modelli
+# sono molto diversi, restava un "gradino" dritto lungo il bordo. Ora:
+#   1. dentro il suo territorio il peso del modello cresce dolcemente per SFUMA_DENTRO_KM;
+#   2. fuori dal territorio il modello non sparisce: si prolunga la sua DIFFERENZA dagli altri modelli (rapporto per
+#      la pioggia, differenza per temperatura ecc.), lisciata, che si spegne in SFUMA_FUORI_KM. Cosi' la transizione
+#      segue le forme della pioggia invece della linea del bordo, e non c'e' piu' nessun taglio.
+SFUMA_DENTRO_KM = 50.0
+SFUMA_FUORI_KM = 40.0
+LISCIA_KM = 8.0
+COPRE_TUTTO = 0.995          # un modello che copre almeno il 99,5% del territorio degli altri "copre tutto"
 
 
-def _rampa(ok):
-    """1 all'interno del territorio del modello, scende a 0 avvicinandosi al bordo (niente tagli netti)."""
-    if ok.all():
-        return 1.0
-    if not ok.any():
-        return 0.0
-    from scipy.ndimage import distance_transform_edt
-    return np.clip(distance_transform_edt(ok) / SFUMA_CELLE, 0.0, 1.0)
+def _gradino(x):
+    x = np.clip(x, 0.0, 1.0)
+    return x * x * (3 - 2 * x)
 
 
-def media(campi, w):
-    """Media pesata cella per cella; dove un modello manca, si usano gli altri.
-    Vicino al bordo del territorio di un modello (es. AROME) il suo peso sfuma gradualmente."""
+def _liscia_dentro(a, ok, sg):
+    """Media gaussiana di a calcolata solo con le celle valide."""
+    from scipy.ndimage import gaussian_filter
+    den = gaussian_filter(ok.astype(np.float32), sg, mode="nearest")
+    num = gaussian_filter(np.where(ok, a, 0.0).astype(np.float32), sg, mode="nearest")
+    return np.where(den > 1e-3, num / np.maximum(den, 1e-3), 0.0)
+
+
+def _media_semplice(campi, w):
     num = den = None
     for m, c in campi.items():
         ok = np.isfinite(c)
-        r = _rampa(ok)
-        x = np.where(ok, c, 0.0) * w[m] * r
-        d = ok * w[m] * r
+        x = np.where(ok, c, 0.0) * w[m]
+        d = ok * float(w[m])
         num = x if num is None else num + x
         den = d if den is None else den + d
     return np.where(den > 0, num / np.where(den > 0, den, 1), np.nan)
 
 
+def media(campi, w, moltiplicativo=False, cella_km=None):
+    """Media pesata cella per cella; dove un modello non arriva (es. AROME a sud) la transizione e' invisibile:
+    vedi SFUMA_DENTRO_KM / SFUMA_FUORI_KM qui sopra."""
+    from scipy.ndimage import distance_transform_edt
+    if not campi:
+        return None
+    ck = cella_km or CELLA_KM.get(AREA, 3.0)
+    unione = np.zeros(next(iter(campi.values())).shape, bool)
+    for c in campi.values():
+        unione |= np.isfinite(c)
+    n_un = max(int(unione.sum()), 1)
+    pieni = {m: c for m, c in campi.items() if (np.isfinite(c) & unione).sum() >= COPRE_TUTTO * n_un}
+    parziali = {m: c for m, c in campi.items() if m not in pieni and np.isfinite(c).any()}
+    if not parziali:
+        return _media_semplice(campi, w)
+    if not pieni:                        # nessun riferimento completo: rampa larga e dolce, come ripiego
+        pieni = {}
+    rif = _media_semplice(pieni, w) if pieni else None
+    num = np.zeros(unione.shape, np.float64)
+    den = np.zeros(unione.shape, np.float64)
+    for m, c in pieni.items():
+        ok = np.isfinite(c)
+        num += np.where(ok, c, 0.0) * w[m]
+        den += ok * float(w[m])
+    e = 0.3                                          # mm: evita rapporti assurdi dove piove pochissimo
+    for m, c in parziali.items():
+        ok = np.isfinite(c)
+        d_in = distance_transform_edt(ok) * ck
+        d_out, idx = distance_transform_edt(~ok, return_indices=True)
+        d_out = d_out * ck
+        if rif is not None:
+            base = np.where(np.isfinite(rif), rif, 0.0)
+            if moltiplicativo:
+                a = np.log((np.where(ok, c, 0.0).clip(0) + e) / (base.clip(0) + e))
+            else:
+                a = np.where(ok, c, 0.0) - base
+            a_s = _liscia_dentro(a, ok, LISCIA_KM / ck)
+            a_ext = a_s[idx[0], idx[1]] * np.exp(-d_out / (SFUMA_FUORI_KM / 2.0))
+            if moltiplicativo:
+                fuori = (base.clip(0) + e) * np.exp(a_ext) - e
+            else:
+                fuori = base + a_ext
+            val = np.where(ok, c, fuori)
+            s = np.where(ok, d_in, -d_out)
+            f = _gradino((s + SFUMA_FUORI_KM) / (SFUMA_DENTRO_KM + SFUMA_FUORI_KM))
+            f = np.where(np.isfinite(rif) | ok, f, 0.0)
+        else:
+            val = np.where(ok, c, 0.0)
+            f = np.where(ok, _gradino(d_in / SFUMA_DENTRO_KM), 0.0)
+        val = np.where(np.isfinite(val), val, 0.0)
+        num += val * w[m] * f
+        den += float(w[m]) * f
+    out = np.where(den > 1e-9, num / np.where(den > 1e-9, den, 1), np.nan)
+    if moltiplicativo:
+        out = np.clip(out, 0, None)
+    return np.where(unione, out, np.nan)
+
+
 # ---------------------------------------------------------------------------
 _M = {}
-PUNTI_DA = {"T": "temperatura", "Td": "rugiada", "V": "vento", "P": "pioggia"}
+PUNTI_DA = {"T": "temperatura", "Td": "rugiada", "V": "vento", "P": "pioggia", "N": "nuvole"}
 
 
 # ---------------------------------------------------------------------------
@@ -206,11 +275,11 @@ def media_armonica(campi, w, moltiplicativo=False):
     sg = SCALA_KM / 2.0 / CELLA_KM.get(AREA, 3.0)
     fini = [m for m in campi if _ris_km(m) <= ALTA_RIS_KM]
     if sg < 1.0 or not fini:
-        return media(campi, w)                      # griglia gia' grossolana o nessun modello fine
+        return media(campi, w, moltiplicativo)       # griglia gia' grossolana o nessun modello fine
     basso = {m: _passa_basso(c, sg) for m, c in campi.items()}
-    forma = media(basso, w)                          # la forma generale: decisa dalla pagella
-    alto = media({m: campi[m] for m in fini}, {m: 1.0 for m in fini})
-    alto_b = media({m: basso[m] for m in fini}, {m: 1.0 for m in fini})
+    forma = media(basso, w, moltiplicativo)          # la forma generale: decisa dalla pagella
+    alto = media({m: campi[m] for m in fini}, {m: 1.0 for m in fini}, moltiplicativo)
+    alto_b = media({m: basso[m] for m in fini}, {m: 1.0 for m in fini}, moltiplicativo)
     if moltiplicativo:                               # pioggia/neve: il dettaglio e' un rapporto (mai negativo)
         e = 0.3
         rapporto = np.clip((alto + e) / (alto_b + e), 0.2, 4.0)
@@ -241,7 +310,7 @@ def _punti(t, h, medie):
     righe = []
     for tipo, chiave in (("pesata", AREA), ("uguali", AREA + "_uguali")):
         val = {}
-        for v in ("T", "Td", "V", "P"):
+        for v in ("T", "Td", "V", "P", "N"):
             c = medie.get(v, {}).get(tipo)
             val[v] = None if c is None else c[iy, ix]
         for n, (sid, _, _) in enumerate(st):
@@ -249,8 +318,10 @@ def _punti(t, h, medie):
             if not np.isfinite(T):
                 continue
             fmt = lambda v, k=1: None if val[v] is None or not np.isfinite(val[v][n]) else round(float(val[v][n]), k)
+            p = fmt("P", 2) if h > 0 else None
+            g = classe_comune(fmt("N", 0), round(float(T), 1), fmt("Td"), None if p is None else p / PASSO)
             righe.append([chiave, corsa, valido, h, PASSO, sid, round(float(T), 1), fmt("Td"), fmt("V"),
-                          fmt("P", 2) if h > 0 else None, None if z is None else round(float(z[n]))])
+                          p, None if z is None else round(float(z[n])), g])
     return righe
 
 
@@ -300,7 +371,7 @@ def _fai(compito):
             campo = media_armonica(campi, w, moltiplicativo=PESO_DA[p["id"]] == "P" and not p["id"].startswith("anom"))
             for v, pid in PUNTI_DA.items():
                 if pid == p["id"]:
-                    medie[v] = {"pesata": campo, "uguali": media(campi, {m: 1.0 for m in campi})}
+                    medie[v] = {"pesata": campo, "uguali": media(campi, {m: 1.0 for m in campi}, PESO_DA[p["id"]] == "P")}
             contorni = None
             if cont:
                 wc = {m: w[m] for m in cont}

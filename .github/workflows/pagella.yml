@@ -1,5 +1,8 @@
 name: Pagella Mappe Lazio
 
+# PAGELLA UNICA (motore/unica.py): tutti i modelli e tutti i WRF confrontati con stazioni e radar con un solo metodo,
+# divisi per tipo di tempo; poi il WRF corretto (motore/corretto.py). Restano anche i calcoli di prima (pagella.json
+# per i pesi del multimodello, verifica/ottica/confronto per l'archivio «radar contro modelli»).
 # Confronta le previsioni delle Mappe Lazio (tutti i modelli) con le stazioni meteo reali.
 # Parte dopo ogni pubblicazione delle mappe e comunque ogni 3 ore.
 # Risultato nel ramo "pagella": pagella.json (letto dal sito) e lo storico delle previsioni nei punti.
@@ -21,7 +24,7 @@ concurrency:
 jobs:
   pagella:
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 45
     steps:
     - uses: actions/checkout@v4
     - uses: actions/setup-python@v5
@@ -133,8 +136,19 @@ jobs:
         # le 16 varianti di fisica (WRF 3 km con metodi di calcolo diversi)
         for f in wrf/fisica/*.npz; do [ -e "$f" ] && A="$A wrffis_$(basename "$f" .npz)=$f"; done
         [ -n "$A" ] && W="$W --wrf-altri $A"
+        # multimodello e media semplice ricostruiti ora per ora sulla griglia della pagella (le mappe escono ogni 3 ore)
+        C=""; for m in icon2i arome ecmwf ukmo gfs; do [ -f "griglie_$m.npz" ] && C="$C $m=griglie_$m.npz"; done
+        python -m motore.sintesi --pagella "$RAMO/pagella.json" --uscita sintesi $C 2>&1 | tee -a registro.txt || true
+        for k in multi media; do [ -f "sintesi/$k.npz" ] && G="$G $k=sintesi/$k.npz"; done
         R=""; [ -f radar_orario.npz ] && R="--radar radar_orario.npz"
         python -m motore.verifica --storico "$RAMO" $R --griglie $G $W 2>&1 | tee -a registro.txt
+        # pagelle di prima (WRF «che tempo fa» ecc.): servono una volta sola, per conservarle nel nuovo sistema
+        [ -f "$RAMO/unica/precedente.json" ] || curl -fsSL --retry 3 -o "$RUNNER_TEMP/pagella_wrf.json" "https://raw.githubusercontent.com/eremite1/wrf-nerola/storico/pagella.json" || true
+        # PAGELLA UNICA: tutti i modelli, un solo metodo (stazioni + radar ora per ora + accumuli 6 e 24 ore), per situazione
+        python -m motore.unica --storico "$RAMO" $R --osservazioni osservazioni.csv 2>&1 | tee -a registro.txt
+        # WRF CORRETTO: il WRF migliore corretto con le stazioni e con lo storico del radar, zona per zona
+        K=""; for kv in wrf3km=wrf/d01_tutto.npz wrf1km=wrf/d02_tutto.npz wrfgfs3km=wrf/gfs_d01.npz wrfgfs1km=wrf/gfs_d02.npz wrficoneu3km=wrf/iconeu_d01.npz wrficoneu1km=wrf/iconeu_d02.npz wrficon2i3km=wrf/icon2i_d01.npz wrficon2i1km=wrf/icon2i_d02.npz; do [ -f "${kv#*=}" ] && K="$K $kv"; done
+        [ -n "$K" ] && { python -m motore.corretto --storico "$RAMO" --osservazioni osservazioni.csv $K 2>&1 | tee -a registro.txt || echo "::warning::WRF corretto non calcolato"; }
         cd "$RAMO"
         git init -q -b pagella
         git config user.name 'actions-user'

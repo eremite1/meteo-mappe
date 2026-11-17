@@ -126,8 +126,10 @@ def wrf_griglia(f, chiave, cartella):
 
 def wrf_punti(d01, d02, stazioni, cartella, altri=()):
     """Previsioni del WRF nei punti delle stazioni e del radar, nel formato dei punti delle Mappe Lazio
-    (corsa, valido, ore, passo, id, T, Td, V, P, h): T e Td in gradi, vento in m/s, pioggia in 3 ore (passo 3)."""
+    (corsa, valido, ore, passo, id, T, Td, V, P, h, G, uV): T e Td in gradi, vento in km/h (come le stazioni; uV=kmh),
+    pioggia in 3 ore (passo 3), G = «che tempo fa» con la formula comune della pagella unica (motore/unica.py)."""
     import csv
+    from motore.unica import classe_comune
     righe_out = {}
     for chiave, f in [("wrf3km", d01), ("wrf1km", d02)] + list(altri):
         if not f or not Path(f).exists():
@@ -140,8 +142,9 @@ def wrf_punti(d01, d02, stazioni, cartella, altri=()):
         e = z["Q2"] * z["PSFC"] / (0.622 + z["Q2"]) / 100.0
         lne = np.log(np.maximum(e, 1e-3) / 6.112)
         Td = 243.5 * lne / (17.67 - lne)
-        V = np.hypot(z["U10"], z["V10"])
+        Vk = np.hypot(z["U10"], z["V10"]) * 3.6
         cum = z["RAINC"] + z["RAINNC"]
+        nuv = z["NUVT"] if "NUVT" in z.files else None
         c = math.cos(math.radians(42.1))
         righe = []
         for sid, la, lo in stazioni:
@@ -152,14 +155,19 @@ def wrf_punti(d01, d02, stazioni, cartella, altri=()):
             for k, t in enumerate(tempi):
                 h = int(round((t - corsa).total_seconds() / 3600))
                 p = ""
-                if h > 0 and h % 3 == 0:
+                if h > 0 and h % 3 == 0 and k >= 3:
                     p = round(float(cum[k, iy, ix] - cum[k - 3, iy, ix]), 2)
+                g = ""
+                if k >= 1 and (t - tempi[k - 1]) == timedelta(hours=1):
+                    gg = classe_comune(None if nuv is None else float(nuv[k, iy, ix]), float(T[k, iy, ix]),
+                                       float(Td[k, iy, ix]), max(0.0, float(cum[k, iy, ix] - cum[k - 1, iy, ix])))
+                    g = "" if gg is None else gg
                 righe.append([iso(corsa), iso(t), h, 3, sid, round(float(T[k, iy, ix]), 1), round(float(Td[k, iy, ix]), 1),
-                              round(float(V[k, iy, ix]), 1), p, round(float(z["hgt"][iy, ix]))])
+                              round(float(Vk[k, iy, ix]), 1), p, round(float(z["hgt"][iy, ix])), g, "kmh"])
         p = Path(cartella) / f"{chiave}.csv"
         with open(p, "w", newline="") as fh:
             w = csv.writer(fh)
-            w.writerow(["corsa", "valido", "ore", "passo", "id", "T", "Td", "V", "P", "h"])
+            w.writerow(["corsa", "valido", "ore", "passo", "id", "T", "Td", "V", "P", "h", "G", "uV"])
             w.writerows(righe)
         righe_out[chiave] = p
     return righe_out
