@@ -319,17 +319,25 @@ def indice_temporali(cape, cin=None, li=None, k=None, rh700=None, prec=None, w70
 
 
 def che_tempo(nub, t, td, p_ora):
-    """«Che tempo fa» cella per cella, con la STESSA formula della pagella unica (motore/unica.py, classe_comune):
-    1 sereno o poco nuvoloso · 2 nuvoloso o coperto · 3 nebbia o foschia · 4 pioggia · 5 neve."""
+    """«Che tempo fa» cella per cella. Quando ci sono piu' fenomeni insieme vince il piu' importante:
+    neve > pioggia (con nebbia, se c'e' anche la nebbia) > pioviggine > nebbia > foschia > uggioso > nuvoloso > sereno.
+    Classi: 1 sereno o poco nuvoloso · 2 nuvoloso · 3 uggioso (coperto e molto umido) · 4 foschia · 5 nebbia ·
+    6 pioviggine · 7 pioggia · 8 pioggia e nebbia · 9 neve.
+    Per la pagella unica si raggruppano (GRUPPO_FINE): stessa formula di motore/unica.py, classe_comune."""
     t, td, p = np.asarray(t, float), np.asarray(td, float), np.clip(np.asarray(p_ora, float), 0, None)
     nub = np.asarray(nub, float)
     es = lambda x: np.exp(17.625 * x / (243.04 + x))  # noqa: E731
     rh = 100 * es(td) / es(t)
     vis = 1609.0 * 6000.0 * np.clip((t - td) * 1.8, 0, None) / np.maximum(rh, 1) ** 1.75
     vis = np.where(rh >= 99.5, 400.0, vis)
-    out = np.where(nub < 45, 1.0, 2.0)
-    out = np.where((vis < 5000) & (nub >= 30), 3.0, out)
-    out = np.where((p >= 0.05) & (rh >= 90) & (nub >= 60), 4.0, out)      # pioviggine
-    out = np.where(p >= 0.3, 4.0, out)
-    out = np.where((p >= 0.1) & (t <= 0.5), 5.0, out)
+    out = np.where(nub < 45, 1.0, np.where((rh >= 85) & (nub >= 80), 3.0, 2.0))
+    nebbioso = (vis < 5000) & (nub >= 30)
+    out = np.where(nebbioso, np.where(vis < 1000, 5.0, 4.0), out)
+    out = np.where((p >= 0.05) & (rh >= 90) & (nub >= 60), 6.0, out)
+    out = np.where(p >= 0.3, np.where(vis < 1000, 8.0, 7.0), out)
+    out = np.where((p >= 0.1) & (t <= 0.5), 9.0, out)
     return np.where(np.isfinite(t) & np.isfinite(nub), out, np.nan)
+
+
+# classe fine della mappa -> gruppo della pagella (0 sereno, 1 nuvoloso, 2 nebbia/foschia, 3 pioggia, 4 neve)
+GRUPPO_FINE = {1: 0, 2: 1, 3: 1, 4: 2, 5: 2, 6: 3, 7: 3, 8: 3, 9: 4}

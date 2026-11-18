@@ -375,9 +375,11 @@ P("vento_500", "Vento a 500 hPa (~5500 m)", "Vento", "km/h",
 P("base_nubi", "Base delle nubi cumuliformi", "Nuvole e visibilità", "metri sopra il suolo",
   dict(livelli=[100, 250, 500, 750, 1000, 1500, 2000, 2500, 3000], cmap=plt.get_cmap("GnBu_r"),
        extend="max"), LOC, lambda c: C.base_nubi(c.t2m(), c.td2m()))
-S_CHE_TEMPO = dict(livelli=[0.5, 1.5, 2.5, 3.5, 4.5, 5.5],
-                   colori=["#ffd75e", "#9aa7b4", "#cfc6b3", "#2f80ed", "#b6ecff"], extend="neither", ombra=True,
-                   etichette=["sereno", "nuvoloso", "nebbia", "pioggia", "neve"])
+S_CHE_TEMPO = dict(livelli=[x + 0.5 for x in range(10)],
+                   colori=["#ffd75e", "#a9b4bf", "#6e7a86", "#e6dfcf", "#bdb197", "#9cc8f2", "#2f80ed", "#34508f",
+                           "#b6ecff"], extend="neither", ombra=True,
+                   etichette=["sereno", "nuvoloso", "uggioso", "foschia", "nebbia", "pioviggine", "pioggia",
+                              "pioggia e nebbia", "neve"])
 P("che_tempo", "Che tempo fa", "Nuvole e visibilità",
   "tempo dell'ora", S_CHE_TEMPO, LOC,
   lambda c: C.che_tempo(c.nuvole(), c.t2m(), c.td2m(), c.acc("precipitation") / (c.L.passo[c.area] or 1)))
