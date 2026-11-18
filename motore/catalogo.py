@@ -379,7 +379,7 @@ S_CHE_TEMPO = dict(livelli=[0.5, 1.5, 2.5, 3.5, 4.5, 5.5],
                    colori=["#ffd75e", "#9aa7b4", "#cfc6b3", "#2f80ed", "#b6ecff"], extend="neither", ombra=True,
                    etichette=["sereno", "nuvoloso", "nebbia", "pioggia", "neve"])
 P("che_tempo", "Che tempo fa", "Nuvole e visibilità",
-  "tempo di ogni ora (stessa formula della pagella unica: nuvole, umidità, pioggia, temperatura)", S_CHE_TEMPO, LOC,
+  "tempo dell'ora", S_CHE_TEMPO, LOC,
   lambda c: C.che_tempo(c.nuvole(), c.t2m(), c.td2m(), c.acc("precipitation") / (c.L.passo[c.area] or 1)))
 P("nebbia", "Rischio nebbia", "Nuvole e visibilità", "",
   dict(livelli=[0.5, 1.5, 2.5, 3.5], colori=["#d9d9d9", "#a6a6a6", "#6e6e6e"], extend="neither",
