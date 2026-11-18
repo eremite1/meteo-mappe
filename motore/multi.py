@@ -394,6 +394,19 @@ def _fai(compito):
             risultati.append((AREA, p["id"], nome, h, t.strftime("%Y-%m-%dT%H:%MZ"), {m: round(w[m], 3) for m in w}))
         except Exception as e:
             errori.append(f"multi/{p['id']}/+{h}h: {type(e).__name__}: {e}")
+    # «che tempo fa» del multimodello: dalle medie pesate di nuvole, temperatura, rugiada e pioggia
+    pct = next((x for x in PARAMETRI if x["id"] == "che_tempo"), None)
+    if pct and AREA in pct["aree"] and all(k in medie for k in ("N", "T", "Td", "P")):
+        try:
+            from .calcoli import che_tempo
+            campo = che_tempo(medie["N"]["pesata"], medie["T"]["pesata"], medie["Td"]["pesata"],
+                              np.nan_to_num(medie["P"]["pesata"]) / PASSO)
+            nome = f"che_tempo_h{h:03d}.png"
+            dis.disegna(os.path.join(G.USCITA, AREA, nome), campo, pct, NOME, data, f"+{h}h",
+                        f"Dalle medie pesate di nuvole, temperatura, rugiada e pioggia · ora italiana ({ora_utc})")
+            risultati.append((AREA, "che_tempo", nome, h, t.strftime("%Y-%m-%dT%H:%MZ"), {}))
+        except Exception as e:
+            errori.append(f"multi/che_tempo/+{h}h: {type(e).__name__}: {e}")
     try:
         righe = _punti(t, h, medie)
     except Exception as e:

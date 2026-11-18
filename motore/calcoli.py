@@ -316,3 +316,20 @@ def indice_temporali(cape, cin=None, li=None, k=None, rh700=None, prec=None, w70
     if lpi is not None:
         p = np.maximum(p, 100.0 * _rampa(np.nan_to_num(lpi, nan=0.0), 0.5, 5.0))
     return np.clip(p, 0, 100)
+
+
+def che_tempo(nub, t, td, p_ora):
+    """«Che tempo fa» cella per cella, con la STESSA formula della pagella unica (motore/unica.py, classe_comune):
+    1 sereno o poco nuvoloso · 2 nuvoloso o coperto · 3 nebbia o foschia · 4 pioggia · 5 neve."""
+    t, td, p = np.asarray(t, float), np.asarray(td, float), np.clip(np.asarray(p_ora, float), 0, None)
+    nub = np.asarray(nub, float)
+    es = lambda x: np.exp(17.625 * x / (243.04 + x))  # noqa: E731
+    rh = 100 * es(td) / es(t)
+    vis = 1609.0 * 6000.0 * np.clip((t - td) * 1.8, 0, None) / np.maximum(rh, 1) ** 1.75
+    vis = np.where(rh >= 99.5, 400.0, vis)
+    out = np.where(nub < 45, 1.0, 2.0)
+    out = np.where((vis < 5000) & (nub >= 30), 3.0, out)
+    out = np.where((p >= 0.05) & (rh >= 90) & (nub >= 60), 4.0, out)      # pioviggine
+    out = np.where(p >= 0.3, 4.0, out)
+    out = np.where((p >= 0.1) & (t <= 0.5), 5.0, out)
+    return np.where(np.isfinite(t) & np.isfinite(nub), out, np.nan)

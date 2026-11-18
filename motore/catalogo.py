@@ -375,6 +375,12 @@ P("vento_500", "Vento a 500 hPa (~5500 m)", "Vento", "km/h",
 P("base_nubi", "Base delle nubi cumuliformi", "Nuvole e visibilità", "metri sopra il suolo",
   dict(livelli=[100, 250, 500, 750, 1000, 1500, 2000, 2500, 3000], cmap=plt.get_cmap("GnBu_r"),
        extend="max"), LOC, lambda c: C.base_nubi(c.t2m(), c.td2m()))
+S_CHE_TEMPO = dict(livelli=[0.5, 1.5, 2.5, 3.5, 4.5, 5.5],
+                   colori=["#ffd75e", "#9aa7b4", "#cfc6b3", "#2f80ed", "#b6ecff"], extend="neither", ombra=True,
+                   etichette=["sereno", "nuvoloso", "nebbia", "pioggia", "neve"])
+P("che_tempo", "Che tempo fa", "Nuvole e visibilità",
+  "tempo di ogni ora (stessa formula della pagella unica: nuvole, umidità, pioggia, temperatura)", S_CHE_TEMPO, LOC,
+  lambda c: C.che_tempo(c.nuvole(), c.t2m(), c.td2m(), c.acc("precipitation") / (c.L.passo[c.area] or 1)))
 P("nebbia", "Rischio nebbia", "Nuvole e visibilità", "",
   dict(livelli=[0.5, 1.5, 2.5, 3.5], colori=["#d9d9d9", "#a6a6a6", "#6e6e6e"], extend="neither",
        ombra=True, etichette=["basso", "moderato", "alto"]), LOC,
@@ -506,7 +512,7 @@ CATEGORIA_DI = {
                        "pioggia_24h", "pioggia_totale", "rovesci",
                        "neve", "neve_totale", "neve_suolo"],
     "Vento": ["vento", "raffiche", "vento_925", "vento_850", "vento_700", "vento_500", "getto"],
-    "Nuvole e visibilità": ["nuvole", "nuvole_basse", "nuvole_medie", "nuvole_alte", "base_nubi",
+    "Nuvole e visibilità": ["che_tempo", "nuvole", "nuvole_basse", "nuvole_medie", "nuvole_alte", "base_nubi",
                             "nebbia", "visibilita", "radiazione"],
     "Pressione e quota": ["pressione", "z500_t500", "t850", "umidita_850", "umidita_700",
                           "moti_verticali", "theta_e_850", "gradiente_850_500", "acqua_precipitabile",
