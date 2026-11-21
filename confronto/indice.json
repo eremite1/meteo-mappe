@@ -1,0 +1,152 @@
+{
+ "aggiornato": "2026-11-21T08:10Z",
+ "giorni": [
+  {
+   "giorno": "2026-11-21",
+   "completo": false,
+   "radar": {
+    "media": 0.0,
+    "max": 0.7,
+    "area": 0,
+    "nerola": 0.0
+   },
+   "modelli": 34,
+   "migliore": [
+    "AROME",
+    0
+   ]
+  },
+  {
+   "giorno": "2026-11-20",
+   "completo": true,
+   "radar": {
+    "media": 1.9,
+    "max": 46.1,
+    "area": 23,
+    "nerola": 1.6
+   },
+   "modelli": 34,
+   "migliore": [
+    "AROME",
+    63
+   ]
+  },
+  {
+   "giorno": "2026-11-19",
+   "completo": true,
+   "radar": {
+    "media": 19.2,
+    "max": 87.4,
+    "area": 94,
+    "nerola": 12.6
+   },
+   "modelli": 34,
+   "migliore": [
+    "Multimodello",
+    92
+   ]
+  },
+  {
+   "giorno": "2026-11-18",
+   "completo": true,
+   "radar": {
+    "media": 0.8,
+    "max": 11.6,
+    "area": 26,
+    "nerola": 0.2
+   },
+   "modelli": 34,
+   "migliore": [
+    "ICON-EU",
+    43
+   ]
+  },
+  {
+   "giorno": "2026-11-17",
+   "completo": true,
+   "radar": {
+    "media": 7.2,
+    "max": 67.6,
+    "area": 93,
+    "nerola": 4.4
+   },
+   "modelli": 34,
+   "migliore": [
+    "AROME",
+    84
+   ]
+  },
+  {
+   "giorno": "2026-11-16",
+   "completo": true,
+   "radar": {
+    "media": 12.4,
+    "max": 42.4,
+    "area": 99,
+    "nerola": 23.0
+   },
+   "modelli": 31,
+   "migliore": [
+    "WRF 1 km · GFS",
+    86
+   ]
+  },
+  {
+   "giorno": "2026-11-15",
+   "completo": true,
+   "radar": {
+    "media": 24.9,
+    "max": 84.9,
+    "area": 100,
+    "nerola": 18.4
+   },
+   "modelli": 30,
+   "migliore": [
+    "WRF 1 km · ICON-EU",
+    90
+   ]
+  },
+  {
+   "giorno": "2026-11-14",
+   "completo": true,
+   "radar": {
+    "media": 2.5,
+    "max": 56.6,
+    "area": 28,
+    "nerola": 0.3
+   },
+   "modelli": 30,
+   "migliore": [
+    "WRF 1 km · ICON-EU",
+    39
+   ]
+  },
+  {
+   "giorno": "2026-11-13",
+   "completo": true,
+   "radar": {
+    "media": 16.8,
+    "max": 114.0,
+    "area": 68,
+    "nerola": 4.8
+   },
+   "modelli": 30,
+   "migliore": [
+    "AROME",
+    94
+   ]
+  },
+  {
+   "giorno": "2026-11-12",
+   "completo": true,
+   "radar": {
+    "media": 24.8,
+    "max": 109.2,
+    "area": 100,
+    "nerola": 19.3
+   },
+   "modelli": 18,
+   "migliore": null
+  }
+ ]
+}
