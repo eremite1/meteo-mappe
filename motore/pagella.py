@@ -97,15 +97,47 @@ def archivia(storico, modello, file_punti):
     return len(per_corsa)
 
 
+class Riga:
+    """Una riga di previsione in forma compatta (numeri gia' convertiti, solo i campi che servono).
+    Con tanti modelli e 30 giorni di storico le righe come dizionari di testo riempivano la memoria
+    del computer di GitHub, che spegneva il lavoro a meta'. Si usa come un dizionario: r["T"], r.get("h")."""
+    __slots__ = ("id", "valido", "corsa", "ore", "passo", "h", "T", "Td", "V", "P")
+
+    def __getitem__(self, k):
+        return getattr(self, k)
+
+    def get(self, k, d=None):
+        v = getattr(self, k, None)
+        return d if v is None else v
+
+
 def leggi_previsioni(storico, giorni):
-    limite = (datetime.now(timezone.utc) - timedelta(days=giorni + 3)).strftime("%Y%m%dT%H")
+    adesso = datetime.now(timezone.utc)
+    limite = (adesso - timedelta(days=giorni + 3)).strftime("%Y%m%dT%H")
+    # servono solo le ore gia' passate (da confrontare con le osservazioni) degli ultimi "giorni" giorni
+    da, a = iso(adesso - timedelta(days=giorni)), iso(adesso)
+    nomi = {}
     out = {}
     for cart in sorted((storico / "previsioni").glob("*")):
         rr = []
         for p in sorted(cart.glob("*.csv.gz")):
-            if p.name[:11] >= limite:
-                with gzip.open(p, "rt", newline="") as f:
-                    rr += list(csv.DictReader(f))
+            if p.name[:11] < limite:
+                continue
+            with gzip.open(p, "rt", newline="") as f:
+                for d in csv.DictReader(f):
+                    valido = d["valido"][:13] + ":00Z"
+                    if valido < da or valido > a:
+                        continue
+                    r = Riga()
+                    r.id = nomi.setdefault(d["id"], d["id"])
+                    r.valido = nomi.setdefault(valido, valido)
+                    r.corsa = nomi.setdefault(d["corsa"], d["corsa"])
+                    r.ore = int(float(d["ore"]))
+                    r.passo = int(float(d.get("passo") or 1))
+                    r.h = num(d.get("h"))
+                    for v in VARIABILI:
+                        setattr(r, v, num(d.get(v)))
+                    rr.append(r)
         out[cart.name] = rr
     return out
 
