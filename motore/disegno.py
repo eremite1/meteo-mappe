@@ -1,6 +1,7 @@
 """
 Disegno delle mappe (una classe per area, che prepara una volta sola coste e confini).
 """
+import os
 import io
 import numpy as np
 import matplotlib
@@ -101,8 +102,50 @@ class Disegnatore:
             self.crs_geo = self.dati_crs
 
     # ------------------------------------------------------------------
+    def _centri(self, ax, p, file, z500):
+        """Carta sinottica: lettere A (alta pressione) e B (bassa) sui massimi e minimi delle isobare, e un
+        file .json accanto alla mappa con i centri e i valori su Nerola (la pagina del sito ne fa un testo)."""
+        import json
+        import matplotlib.patheffects as pe
+        from scipy.ndimage import maximum_filter, minimum_filter
+        passo = abs(float(self.lat[1] - self.lat[0]))
+        k = max(5, int(round(9.0 / passo)))                 # un centro ogni ~9 gradi al massimo
+        pp = np.where(np.isfinite(p), p, np.nanmean(p))
+        bordo = max(2, int(round(1.5 / passo)))
+        centri = []
+        for tipo, filtro, ok in (("A", maximum_filter, lambda v: v >= 1016), ("B", minimum_filter, lambda v: v <= 1010)):
+            f = filtro(pp, size=k, mode="nearest")
+            ii, jj = np.where(pp == f)
+            for i, j in zip(ii, jj):
+                if i < bordo or j < bordo or i >= pp.shape[0] - bordo or j >= pp.shape[1] - bordo or not ok(pp[i, j]):
+                    continue
+                if any(abs(c["i"] - i) < k // 2 and abs(c["j"] - j) < k // 2 for c in centri):
+                    continue
+                centri.append(dict(tipo=tipo, i=int(i), j=int(j), lon=round(float(self.lon[j]), 2),
+                                   lat=round(float(self.lat[i]), 2), hpa=int(round(float(pp[i, j])))))
+        pc = self.dati_crs
+        for c in centri:
+            col = "#1d4ed8" if c["tipo"] == "A" else "#c0262d"
+            alone = [pe.withStroke(linewidth=4, foreground="white")]
+            ax.text(c["lon"], c["lat"], c["tipo"], transform=pc, fontsize=22, fontweight="bold", color=col,
+                    ha="center", va="center", zorder=7, path_effects=alone)
+            ax.text(c["lon"], c["lat"] - 1.3, str(c["hpa"]), transform=pc, fontsize=8, fontweight="bold",
+                    color=col, ha="center", va="top", zorder=7, path_effects=alone)
+        # valori su Nerola
+        jn = int(np.argmin(np.abs(np.asarray(self.lon) - 12.79))); i_n = int(np.argmin(np.abs(np.asarray(self.lat) - 42.16)))
+        dati = dict(centri=[{x: c[x] for x in ("tipo", "lon", "lat", "hpa")} for c in centri],
+                    nerola=dict(hpa=round(float(p[i_n, jn]), 1) if np.isfinite(p[i_n, jn]) else None,
+                                z500=round(float(z500[i_n, jn]), 1) if np.isfinite(z500[i_n, jn]) else None))
+        try:
+            with open(os.path.splitext(file)[0] + ".json", "w") as f:
+                json.dump(dati, f)
+        except OSError:
+            pass
+
+    # ------------------------------------------------------------------
     def disegna(self, file, campo, p, titolo_modello, data, scadenza, info,
-                contorni=None, frecce=None, unita=None):
+                contorni=None, frecce=None, unita=None, extra=None):
+        extra = extra or {}
         st = p.get("stile_europa") if (self.area == "europa" and p.get("stile_europa")) else p["stile"]
         pc = self.dati_crs
         fig = plt.figure(figsize=self.a["figsize"], facecolor="white")
@@ -146,10 +189,11 @@ class Disegnatore:
                 if v.size:
                     cl = np.arange(np.floor(v.min() / passo) * passo, np.ceil(v.max() / passo) * passo + passo, passo)
             if cl is not None and len(cl) > 1:
-                cs = ax.contour(self.X, self.Y, cf, levels=cl, colors="#1a1a1a",
-                                linewidths=0.7, transform=self.crs_disegno, zorder=4)
+                cs = ax.contour(self.X, self.Y, cf, levels=cl, colors=extra.get("colore_contorni", "#1a1a1a"),
+                                linewidths=extra.get("spessore_contorni", 0.7), transform=self.crs_disegno, zorder=4)
                 try:
-                    ax.clabel(cs, cs.levels, fmt="%d", fontsize=7, inline=True)
+                    ax.clabel(cs, cs.levels, fmt="%d", fontsize=extra.get("testo_contorni", 7), inline=True,
+                              colors=extra.get("colore_etichette"))
                 except Exception:
                     pass
 
@@ -188,6 +232,9 @@ class Disegnatore:
         if self.interni:
             ax.add_geometries(self.interni, self.crs_geo, facecolor="none", edgecolor="#555555",
                               linewidth=0.4, zorder=3)
+
+        if extra.get("centri") is not None:
+            self._centri(ax, extra["centri"], file, campo)
 
         for nome, (lo, la) in self.a["citta"].items():
             ax.plot(lo, la, marker="o", color="black", markersize=3.2, transform=pc, zorder=5)

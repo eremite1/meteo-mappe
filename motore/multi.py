@@ -353,9 +353,9 @@ def _fai(compito):
                     errori.append(f"{m}/{p['id']}/+{h}h: {type(e).__name__}: {e}")
                 continue
             if isinstance(r, dict):
-                campo, contorni, frecce = r["campo"], r.get("contorni"), r.get("frecce")
+                campo, contorni, frecce, extra = r["campo"], r.get("contorni"), r.get("frecce"), r.get("extra")
             else:
-                campo, contorni, frecce = r, None, None
+                campo, contorni, frecce, extra = r, None, None, None
             if campo is None or not np.isfinite(campo).any():
                 continue
             campi[m] = campo
@@ -390,7 +390,7 @@ def _fai(compito):
             info = f"Media pesata secondo la pagella: {quote} · ora italiana ({ora_utc})"
             nome = f"{p['id']}_h{h:03d}.png"
             dis.disegna(os.path.join(G.USCITA, AREA, nome), campo, p, NOME, data, f"+{h}h", info,
-                        contorni=contorni, frecce=frecce, unita=unita)
+                        contorni=contorni, frecce=frecce, unita=unita, extra=extra)
             risultati.append((AREA, p["id"], nome, h, t.strftime("%Y-%m-%dT%H:%MZ"), {m: round(w[m], 3) for m in w}))
         except Exception as e:
             errori.append(f"multi/{p['id']}/+{h}h: {type(e).__name__}: {e}")

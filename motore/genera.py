@@ -804,9 +804,9 @@ def _fai_istante(compito):
             try:
                 r = p["calcolo"](ctx)
                 if isinstance(r, dict):
-                    campo, contorni, frecce = r["campo"], r.get("contorni"), r.get("frecce")
+                    campo, contorni, frecce, extra = r["campo"], r.get("contorni"), r.get("frecce"), r.get("extra")
                 else:
-                    campo, contorni, frecce = r, None, None
+                    campo, contorni, frecce, extra = r, None, None, None
                 if campo is None or not np.isfinite(campo).any():
                     continue
                 unita = p["unita"]
@@ -818,7 +818,7 @@ def _fai_istante(compito):
                     info = f"Modello {L.cfg['nome']} ({L.cfg.get('ris_aree', {}).get(area, L.cfg['ris'])}) · dettaglio del terreno a 500 m · corsa {L.corsa:%d/%m %H} UTC"
                 nome = f"{p['id']}_h{h:03d}.png"
                 dis.disegna(os.path.join(cartella, nome), campo, p, L.cfg["nome"], data,
-                            f"+{h}h", info, contorni=contorni, frecce=frecce, unita=unita)
+                            f"+{h}h", info, contorni=contorni, frecce=frecce, unita=unita, extra=extra)
                 risultati.append((area, p["id"], nome, h, t.strftime("%Y-%m-%dT%H:%MZ")))
             except Exception as e:
                 if not isinstance(e, (Mancante, KeyError)):
