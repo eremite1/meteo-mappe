@@ -119,6 +119,10 @@ class Disegnatore:
             for i, j in zip(ii, jj):
                 if i < bordo or j < bordo or i >= pp.shape[0] - bordo or j >= pp.shape[1] - bordo or not ok(pp[i, j]):
                     continue
+                lo_c, la_c = float(self.lon[j]), float(self.lat[i])
+                e = self.a["extent"]
+                if not (e[0] + 1 <= lo_c <= e[1] - 1 and e[2] + 1 <= la_c <= e[3] - 1):
+                    continue                                   # solo i centri dentro la carta disegnata
                 if any(abs(c["i"] - i) < k // 2 and abs(c["j"] - j) < k // 2 for c in centri):
                     continue
                 centri.append(dict(tipo=tipo, i=int(i), j=int(j), lon=round(float(self.lon[j]), 2),
@@ -128,9 +132,9 @@ class Disegnatore:
             col = "#1d4ed8" if c["tipo"] == "A" else "#c0262d"
             alone = [pe.withStroke(linewidth=4, foreground="white")]
             ax.text(c["lon"], c["lat"], c["tipo"], transform=pc, fontsize=22, fontweight="bold", color=col,
-                    ha="center", va="center", zorder=7, path_effects=alone)
+                    ha="center", va="center", zorder=7, path_effects=alone, clip_on=True)
             ax.text(c["lon"], c["lat"] - 1.3, str(c["hpa"]), transform=pc, fontsize=8, fontweight="bold",
-                    color=col, ha="center", va="top", zorder=7, path_effects=alone)
+                    color=col, ha="center", va="top", zorder=7, path_effects=alone, clip_on=True)
         # valori su Nerola
         jn = int(np.argmin(np.abs(np.asarray(self.lon) - 12.79))); i_n = int(np.argmin(np.abs(np.asarray(self.lat) - 42.16)))
         dati = dict(centri=[{x: c[x] for x in ("tipo", "lon", "lat", "hpa")} for c in centri],
