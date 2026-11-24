@@ -250,16 +250,32 @@ P("radiazione", "Radiazione solare", "Nuvole e pressione", "W/m²",
   lambda c: c.v("shortwave_radiation", minimo=0))
 
 # --- Quota (carte sinottiche) -------------------------------------------------
-# Carta sinottica (solo Europa): colori = altezza della superficie a 500 hPa (circa 5500 m: saccature e
-# promontori), linee bianche = isobare al suolo ogni 4 hPa, lettere A e B sui centri di alta e bassa pressione.
-CMAP_GPT500 = LinearSegmentedColormap.from_list("gpt500", ["#3b0f6f", "#2c3e9e", "#1f6fd1", "#1aa5d8", "#2ec4a6",
-                                                           "#8fd65a", "#f2e34b", "#f6a83a", "#e8612d", "#b8212a", "#7a0d1e"])
-P("sinottica", "Carta sinottica", "Quota", "colori: quota della superficie a 500 hPa (decametri) · linee: isobare al suolo (hPa)",
-  dict(livelli=livelli(508, 596, 4), cmap=CMAP_GPT500, extend="both", alpha=0.95), {"europa"},
-  lambda c: dict(campo=c.liscia(c.v("geopotential_height_500hPa"), 1) / 10,
-                 contorni=(_isobare(c, _liscia_isobare(c)), None, 4),
-                 extra=dict(centri=_isobare(c, 3), colore_contorni="white", spessore_contorni=1.15,
-                            testo_contorni=7.5, colore_etichette="#111111")))
+# CARTA SINOTTICA ANALIZZATA (solo Europa): fronti, masse d'aria, getto, linee temporalesche, richiami caldi,
+# assi di saccatura e promontorio, isobare e centri A/B (motore/analisi.py), disegnata in stile scuro
+# (motore/disegno_sinottica.py). "speciale" dice a genera.py di usare quel disegno.
+def _sinottica(c):
+    from .analisi import Griglia, analizza
+    lat, lon = c.L.griglie[c.area]
+    G = Griglia(lat, lon)
+    u, v = c.uv("850hPa")
+    mslp = _isobare(c, _liscia_isobare(c))
+    try:
+        cape = c.v("cape", minimo=0)
+    except Exception:
+        cape = None
+    try:
+        prec = c.acc("precipitation")
+    except Exception:
+        prec = None
+    a = analizza(G, c.v("temperature_850hPa"), c.v("relative_humidity_850hPa", 0, 100), u, v, mslp,
+                 c.v("geopotential_height_500hPa"), c.vel(c.livello_getto()), cape=cape, prec=prec,
+                 extent=AREE[c.area]["extent"])
+    a["mslp"] = mslp
+    return dict(campo=np.ones_like(mslp), speciale="sinottica", analisi=a, griglia=G)
+
+
+P("sinottica", "Carta sinottica", "Quota", "fronti, masse d'aria, getto, isobare e centri di pressione (analisi automatica)",
+  dict(livelli=[0, 1, 2], colori=["#000000", "#000000"], extend="neither"), {"europa"}, _sinottica)
 P("z500_t500", "Geopotenziale e temperatura a 500 hPa", "Quota", "°C a 500 hPa · isoipse in decametri",
   dict(livelli=livelli(-44, -4, 2), cmap=CMAP_TEMP, extend="both"), {"italia", "europa"},
   lambda c: dict(campo=c.v("temperature_500hPa"),

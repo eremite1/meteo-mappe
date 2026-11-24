@@ -803,6 +803,18 @@ def _fai_istante(compito):
                 p = dict(p, stile=st, stile_europa=None)
             try:
                 r = p["calcolo"](ctx)
+                if isinstance(r, dict) and r.get("speciale") == "sinottica":
+                    from .disegno_sinottica import disegna_sinottica
+                    from .analisi import riassunto
+                    import json as _json
+                    nome = f"{p['id']}_h{h:03d}.png"
+                    info = f"Modello {L.cfg['nome']} · corsa {L.corsa:%d/%m %H} UTC · ora italiana ({ora_utc})"
+                    disegna_sinottica(dis, os.path.join(cartella, nome), r["analisi"], data,
+                                      "analisi" if h == 0 else f"previsione +{h}h", info)
+                    with open(os.path.join(cartella, nome[:-4] + ".json"), "w") as fj:
+                        _json.dump(riassunto(r["griglia"], r["analisi"]), fj, ensure_ascii=False)
+                    risultati.append((area, p["id"], nome, h, t.strftime("%Y-%m-%dT%H:%MZ")))
+                    continue
                 if isinstance(r, dict):
                     campo, contorni, frecce, extra = r["campo"], r.get("contorni"), r.get("frecce"), r.get("extra")
                 else:
@@ -948,6 +960,9 @@ def esegui(chiave, max_istanti=None, processi=None, aree=None):
 
 
 if __name__ == "__main__":
+    solo = [x for x in os.environ.get("SOLO_PARAMETRI", "").split(",") if x]
+    if solo:                                                   # per le prove: solo alcuni parametri
+        PARAMETRI[:] = [p for p in PARAMETRI if p["id"] in solo]
     modello = sys.argv[1]
     aree = sys.argv[2].split(",") if len(sys.argv) > 2 and sys.argv[2] not in ("", "tutte") else None
     mx = int(sys.argv[3]) if len(sys.argv) > 3 else None
