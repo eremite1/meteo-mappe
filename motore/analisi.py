@@ -27,7 +27,7 @@ MASSE = [  # (id, nome, colore)
     ("A", "Artica", "#4f6bff"),
     ("Pc", "Polare continentale", "#7aa2ff"),
     ("Pm", "Polare marittima", "#3fc6d9"),
-    ("T", "Temperata (mista)", "#7fcf8a"),
+    ("T", "Temperata (mista)", "#5d7f6c"),
     ("Sm", "Subtropicale marittima", "#ffc65c"),
     ("Sc", "Subtropicale continentale (africana)", "#ff7f4a"),
 ]

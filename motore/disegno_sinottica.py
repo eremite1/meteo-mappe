@@ -124,8 +124,12 @@ def disegna_sinottica(dis, file, a, data, scadenza, info, titolo="Carta sinottic
                           linestyle=(0, (3, 2)), zorder=3)
         # velatura di pioggia
         if a.get("prec") is not None:
-            ax.contourf(X, Y, np.nan_to_num(a["prec"]), levels=[0.5, 3, 10, 1e4], colors=["#bff5d6", "#7fe6aa", "#3fd17f"],
-                        alpha=0.28, transform=dis.crs_disegno, zorder=2)
+            ax.contourf(X, Y, np.nan_to_num(a["prec"]), levels=[0.5, 3, 1e4], colors=["#ffffff", "#ffffff"],
+                        alpha=0.13, transform=dis.crs_disegno, zorder=2)
+            matplotlib.rcParams["hatch.color"] = "#e8f1ff"
+            matplotlib.rcParams["hatch.linewidth"] = 0.6
+            ax.contourf(X, Y, np.nan_to_num(a["prec"]), levels=[0.5, 3, 1e4], colors="none", hatches=["...", "ooo"],
+                        transform=dis.crs_disegno, zorder=2.1)
 
     # corrente a getto (nastri viola)
     g = a.get("getto")
@@ -214,7 +218,7 @@ def disegna_sinottica(dis, file, a, data, scadenza, info, titolo="Carta sinottic
             Patch(facecolor="#b07dff", alpha=0.5, label="Corrente a getto (>150 km/h)"),
             Line2D([], [], color="#f4f7fb", lw=1, label="Isobare (hPa)")]
     if sfondo is None:
-        voci.append(Patch(facecolor="#33b874", alpha=0.6, label="Precipitazioni"))
+        voci.append(Patch(facecolor="#2a3a4a", edgecolor="#e8f1ff", hatch="...", label="Precipitazioni"))
         voci += [Patch(facecolor=c, alpha=0.75, label=n) for _, n, c in MASSE]
     leg = fig.legend(handles=voci, loc="lower center", ncol=5 if sfondo is None else 4, frameon=False, fontsize=8.6,
                      labelcolor="#d7e1ec", handlelength=2.6, columnspacing=1.6, bbox_to_anchor=(0.5, 0.005))
