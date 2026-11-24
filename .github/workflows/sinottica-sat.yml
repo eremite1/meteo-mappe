@@ -1,0 +1,35 @@
+# CARTA SINOTTICA SUL SATELLITE: ogni ora l'analisi automatica (ultima corsa ECMWF, ora piu' vicina) disegnata
+# sopra l'ultima immagine Meteosat "RGB Airmass" di EUMETSAT. Pubblicata nel ramo "sinottica-sat".
+name: "Carta sinottica sul satellite"
+on:
+  schedule:
+    - cron: '37 * * * *'
+  workflow_dispatch:
+permissions:
+  contents: write
+concurrency:
+  group: sinottica-sat
+  cancel-in-progress: true
+jobs:
+  carta:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+    - uses: actions/checkout@v4
+    - uses: actions/setup-python@v5
+      with:
+        python-version: '3.11'
+        cache: pip
+        cache-dependency-path: requirements-mappe.txt
+    - run: pip install -q -r requirements-mappe.txt
+    - uses: actions/cache@v4
+      with:
+        path: ~/.local/share/cartopy
+        key: cartopy-naturalearth-v2
+    - name: Analisi sul satellite
+      run: python -m motore.sinottica_sat 2>&1 | tail -30
+    - name: Pubblica
+      run: |
+        test -s sat/sinottica_sat.jpg || { echo "::error::immagine non creata"; exit 1; }
+        cd sat && git init -q -b sinottica-sat && git add -A && git -c user.name="github-actions[bot]" -c user.email="41898282+github-actions[bot]@users.noreply.github.com" commit -q -m "Carta sinottica sul satellite"
+        git push -q -f "https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${GITHUB_REPOSITORY}.git" sinottica-sat
