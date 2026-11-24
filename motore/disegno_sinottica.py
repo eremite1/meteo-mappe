@@ -113,7 +113,7 @@ def disegna_sinottica(dis, file, a, data, scadenza, info, titolo="Carta sinottic
     else:
         ax.add_geometries(dis.mare, dis.crs_geo, facecolor=MARE, edgecolor="none", zorder=0.4)
         ax.add_geometries(dis.terra, dis.crs_geo, facecolor=TERRA, edgecolor="none", zorder=0.4)
-        alfa_masse = 0.42
+        alfa_masse = 0.5
         # masse d'aria (campitura discreta e morbida)
         m = a["masse"]
         cmap = ListedColormap([c for _, _, c in MASSE])
@@ -124,15 +124,15 @@ def disegna_sinottica(dis, file, a, data, scadenza, info, titolo="Carta sinottic
                           linestyle=(0, (3, 2)), zorder=3)
         # velatura di pioggia
         if a.get("prec") is not None:
-            ax.contourf(X, Y, np.nan_to_num(a["prec"]), levels=[0.3, 2, 8, 1e4], colors=["#4fd18b", "#33b874", "#1f9a5c"],
-                        alpha=0.45, transform=dis.crs_disegno, zorder=2)
+            ax.contourf(X, Y, np.nan_to_num(a["prec"]), levels=[0.5, 3, 10, 1e4], colors=["#bff5d6", "#7fe6aa", "#3fd17f"],
+                        alpha=0.28, transform=dis.crs_disegno, zorder=2)
 
     # corrente a getto (nastri viola)
     g = a.get("getto")
     if g is not None:
-        ax.contourf(X, Y, np.nan_to_num(g), levels=[110, 150, 200, 1e4], colors=["#7c5cff", "#9a6bff", "#c38bff"],
-                    alpha=0.33 if sfondo is None else 0.28, transform=dis.crs_disegno, zorder=4)
-        ax.contour(X, Y, np.nan_to_num(g), levels=[110], colors=["#b79bff"], linewidths=0.7, alpha=0.7,
+        ax.contourf(X, Y, np.nan_to_num(g), levels=[150, 200, 260, 1e4], colors=["#8f6bff", "#b07dff", "#d49bff"],
+                    alpha=0.22 if sfondo is None else 0.25, transform=dis.crs_disegno, zorder=4)
+        ax.contour(X, Y, np.nan_to_num(g), levels=[150, 220], colors=["#c9b3ff"], linewidths=[0.8, 1.1], alpha=0.85,
                    transform=dis.crs_disegno, zorder=4)
 
     # isobare
@@ -211,7 +211,7 @@ def disegna_sinottica(dis, file, a, data, scadenza, info, titolo="Carta sinottic
             Line2D([], [], color="#ff7a45", lw=0, marker=r"$\rightarrow$", ms=14, label="Richiamo caldo"),
             Line2D([], [], color="#f0a040", lw=2.4, ls=(0, (7, 4)), label="Saccatura (500 hPa)"),
             Line2D([], [], color="#f7d84a", lw=2, ls=(0, (1.5, 3)), label="Promontorio (500 hPa)"),
-            Patch(facecolor="#9a6bff", alpha=0.5, label="Corrente a getto (>110 km/h)"),
+            Patch(facecolor="#b07dff", alpha=0.5, label="Corrente a getto (>150 km/h)"),
             Line2D([], [], color="#f4f7fb", lw=1, label="Isobare (hPa)")]
     if sfondo is None:
         voci.append(Patch(facecolor="#33b874", alpha=0.6, label="Precipitazioni"))

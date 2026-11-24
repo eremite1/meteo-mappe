@@ -24,12 +24,12 @@ from scipy.ndimage import gaussian_filter, maximum_filter, minimum_filter, label
 R_TERRA = 6371e3
 
 MASSE = [  # (id, nome, colore)
-    ("A", "Artica", "#6f8fd8"),
-    ("Pc", "Polare continentale", "#8fb2e6"),
-    ("Pm", "Polare marittima", "#86c5d8"),
-    ("T", "Temperata (mista)", "#b9d6b0"),
-    ("Sm", "Subtropicale marittima", "#f0c987"),
-    ("Sc", "Subtropicale continentale (africana)", "#e59a6b"),
+    ("A", "Artica", "#4f6bff"),
+    ("Pc", "Polare continentale", "#7aa2ff"),
+    ("Pm", "Polare marittima", "#3fc6d9"),
+    ("T", "Temperata (mista)", "#7fcf8a"),
+    ("Sm", "Subtropicale marittima", "#ffc65c"),
+    ("Sc", "Subtropicale continentale (africana)", "#ff7f4a"),
 ]
 
 
@@ -141,23 +141,33 @@ def analizza(G, t850, rh850, u850, v850, mslp, z500, vgetto, cape=None, prec=Non
     tx, ty = G.grad(tfp)
     loc = (tx * nx + ty * ny) * 1e5                              # zero = massimo del TFP lungo il gradiente
     mod_med = gaussian_filter(mod, sig)
-    maschera = (tfp > 0.15) & (mod_med > 1.6)                    # zona frontale vera (soglie alla Hewson, tarate su 850 hPa)
+    maschera = (tfp > 0.3) & (mod_med > 2.4)                    # zona frontale vera (soglie alla Hewson, tarate su 850 hPa)
     linee = _linee_zero(loc, maschera, max(6, int(2.0 / G.passo)))
     vn = (us * nx + vs * ny)                                     # km/h: >0 il vento spinge verso l'aria calda
     fronti = []
     bassi = [c for c in (centri_pressione(G, mslp, extent) if extent else []) if c["tipo"] == "B" and c["hpa"] <= 1000]
     for p in linee:
         p = _liscia_linea(p)
-        if _lunghezza_km(G, p) < 350:
+        if _lunghezza_km(G, p) < 600:
             continue
-        v = gaussian_filter(_campiona(vn, p).astype(float), 3)
-        tipo = np.where(v > 6, "freddo", np.where(v < -6, "caldo", "stazionario"))
+        v = gaussian_filter(_campiona(vn, p).astype(float), 8)
+        tipo = np.where(v > 5, "freddo", np.where(v < -5, "caldo", "stazionario"))
         # occluso: vicino (< 450 km) a una depressione profonda, sul lato dove il fronte si avvolge
         lo, la = G.a_lonlat(p[:, 0], p[:, 1])
         for b in bassi:
             d = np.hypot((lo - b["lon"]) * 111 * np.cos(np.deg2rad(b["lat"])), (la - b["lat"]) * 111)
             tipo = np.where((d < 450) & (tipo != "stazionario"), "occluso", tipo)
-        # spezza in tratti dello stesso tipo (tratti di almeno ~150 km)
+        # i tratti brevi (< 250 km) prendono il tipo dei vicini: niente fronti "a pezzetti"
+        lun = np.concatenate([[0], np.cumsum(np.hypot(np.diff(lo) * 111 * np.cos(np.deg2rad(la[:-1])), np.diff(la) * 111))])
+        for _ in range(3):
+            inizio = 0
+            for k in range(1, len(p) + 1):
+                if k == len(p) or tipo[k] != tipo[inizio]:
+                    if lun[k - 1] - lun[inizio] < 250:
+                        vicino = tipo[inizio - 1] if inizio > 0 else (tipo[k] if k < len(p) else tipo[inizio])
+                        tipo[inizio:k] = vicino
+                    inizio = k
+        # spezza in tratti dello stesso tipo
         inizio = 0
         for k in range(1, len(p) + 1):
             if k == len(p) or tipo[k] != tipo[inizio]:
@@ -224,8 +234,8 @@ def analizza(G, t850, rh850, u850, v850, mslp, z500, vgetto, cape=None, prec=Non
     anom = zl - zl.mean(axis=1, keepdims=True)
     curv = gaussian_filter(zxx, sig)
     minpt = max(6, int(3.0 / G.passo))
-    sacc = [p for p in _linee_zero(zx, (curv > 0.4) & (anom < -40), minpt) if _lunghezza_km(G, p) > 500]
-    prom = [p for p in _linee_zero(zx, (curv < -0.4) & (anom > 40), minpt) if _lunghezza_km(G, p) > 500]
+    sacc = [_liscia_linea(p, 5) for p in _linee_zero(zx, (curv > 0.12) & (anom < -30), minpt) if _lunghezza_km(G, p) > 600]
+    prom = [_liscia_linea(p, 5) for p in _linee_zero(zx, (curv < -0.12) & (anom > 30), minpt) if _lunghezza_km(G, p) > 600]
     out["saccature"] = [dict(i=p[:, 0].tolist(), j=p[:, 1].tolist()) for p in sacc]
     out["promontori"] = [dict(i=p[:, 0].tolist(), j=p[:, 1].tolist()) for p in prom]
     out["prec"] = prec
