@@ -49,7 +49,9 @@ from motore import verifica as V
 
 # ----------------------------------------------------------------------------------------------- modelli
 _FORZ = {"ecmwf": "ECMWF", "gfs": "GFS", "iconeu": "ICON-EU", "icon2i": "ICON-2I"}
-_FIS = {"f1": "WSM6 + MYNN", "f2": "Thompson + YSU", "f3": "Morrison + ACM2", "f4": "Thompson + MYJ"}
+# f2 sospesa a fine novembre 2026 (resta per i voti passati); f5, f6, g1 nuove prove
+_FIS = {"f1": "WSM6 + MYNN", "f2": "Thompson + YSU", "f3": "Morrison + ACM2", "f4": "Thompson + MYJ",
+        "f5": "WSM6 + MYNN + cumuli a 3 km", "f6": "WSM6 + ACM2", "g1": "WSM6 + MYNN, dominio esterno grande"}
 REGISTRO = {
     "icon2i": ("ICON-2I", "2 km", "Modelli", 2.2), "arome": ("AROME", "1,3 km", "Modelli", 1.3),
     "ecmwf": ("ECMWF IFS", "9 km", "Modelli", 9), "ukmo": ("UKMO", "10 km", "Modelli", 10),

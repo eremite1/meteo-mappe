@@ -40,7 +40,8 @@ EXTRA = {"multi": ("Multimodello", "media pesata"), "media": ("Media semplice", 
          "wrficon2i3km": ("WRF ICON-2I 3 km", "3 km"), "wrficon2i1km": ("WRF ICON-2I 1 km", "1 km")}
 # varianti di fisica del WRF (3 km): fis_<modello>_<f1..f4>
 _FORZ = {"ecmwf": "ECMWF", "gfs": "GFS", "iconeu": "ICON-EU", "icon2i": "ICON-2I"}
-_FIS = {"f1": "WSM6+MYNN", "f2": "Thompson+YSU", "f3": "Morrison+ACM2", "f4": "Thompson+MYJ"}
+_FIS = {"f1": "WSM6+MYNN", "f2": "Thompson+YSU", "f3": "Morrison+ACM2", "f4": "Thompson+MYJ",
+        "f5": "WSM6+MYNN+cumuli 3 km", "f6": "WSM6+ACM2", "g1": "WSM6+MYNN dominio grande"}
 for _m, _n in _FORZ.items():
     for _f, _d in _FIS.items():
         EXTRA[f"fis_{_m}_{_f}"] = (f"WRF {_n} {_f.upper()} ({_d})", "3 km")
