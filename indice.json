@@ -1,0 +1,61 @@
+{
+ "corsa": "2026112712",
+ "creato": "2026-11-28T02:55Z",
+ "giorni": [
+  {
+   "giorno": 1,
+   "da": "2026-11-27T12:00Z",
+   "a": "2026-11-28T12:00Z",
+   "nerola_efi": -0.16,
+   "nerola_sot": -2.99,
+   "immagini": {
+    "europa": "efi_tcwv_europa_g1.png",
+    "italia": "efi_tcwv_italia_g1.png"
+   }
+  },
+  {
+   "giorno": 2,
+   "da": "2026-11-28T12:00Z",
+   "a": "2026-11-29T12:00Z",
+   "nerola_efi": -0.49,
+   "nerola_sot": -3.83,
+   "immagini": {
+    "europa": "efi_tcwv_europa_g2.png",
+    "italia": "efi_tcwv_italia_g2.png"
+   }
+  },
+  {
+   "giorno": 3,
+   "da": "2026-11-29T12:00Z",
+   "a": "2026-11-30T12:00Z",
+   "nerola_efi": -0.48,
+   "nerola_sot": -3.77,
+   "immagini": {
+    "europa": "efi_tcwv_europa_g3.png",
+    "italia": "efi_tcwv_italia_g3.png"
+   }
+  },
+  {
+   "giorno": 4,
+   "da": "2026-11-30T12:00Z",
+   "a": "2026-12-01T12:00Z",
+   "nerola_efi": -0.38,
+   "nerola_sot": -3.4,
+   "immagini": {
+    "europa": "efi_tcwv_europa_g4.png",
+    "italia": "efi_tcwv_italia_g4.png"
+   }
+  },
+  {
+   "giorno": 5,
+   "da": "2026-12-01T12:00Z",
+   "a": "2026-12-02T12:00Z",
+   "nerola_efi": -0.5,
+   "nerola_sot": -3.25,
+   "immagini": {
+    "europa": "efi_tcwv_europa_g5.png",
+    "italia": "efi_tcwv_italia_g5.png"
+   }
+  }
+ ]
+}
