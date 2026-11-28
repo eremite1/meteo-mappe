@@ -1,0 +1,32 @@
+{
+ "base": "wrficon2i1km",
+ "corsa": "2026-11-24T12:00Z",
+ "creato": "2026-11-27T09:24Z",
+ "stazioni": 81,
+ "correzione_media_T": 0.01,
+ "fattore_medio_vento": 0.83,
+ "radar": {
+  "ritardo_ore": 0.21,
+  "casi_tempo": 324,
+  "est_km": -0.5,
+  "nord_km": -2.9,
+  "casi_posizione": 83
+ },
+ "spostamento_ore": 0,
+ "spostamento_km": [
+  0,
+  0
+ ],
+ "intensita_zone_quota": 3,
+ "fattori_zona": {
+  "estesa": 2,
+  "deboli": 2,
+  "estesa_intensa": 4
+ },
+ "fattore_globale_radar": 1.3,
+ "pioggia_48h_prima_dopo": [
+  43.21,
+  48.34
+ ],
+ "voto_base": 45.3
+}
